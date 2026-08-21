@@ -11,6 +11,10 @@ permissions:
   actions: read
   contents: write
 
+concurrency:
+  group: publish-orcabrick-v2.4.2-1
+  cancel-in-progress: false
+
 jobs:
   publish:
     name: Publish one-click Windows installer
@@ -35,8 +39,24 @@ jobs:
 
       - name: Create permanent OrcaBrick release
         run: |
-          gh release create "$RELEASE_TAG" "$INSTALLER" \
-            --repo "$GITHUB_REPOSITORY" \
-            --target orcabrick-2.4.2 \
-            --title "OrcaBrick 2.4.2-1 for Windows" \
-            --notes "OrcaSlicer 2.4.2 stable with Nanashi-style native Bricklaying (staggered walls). The checkbox is under Process > Strength > Walls. Built from commit d86273ae55b35aaba2429c5879df733d45097b29."
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$INSTALLER" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$RELEASE_TAG" "$INSTALLER" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target orcabrick-2.4.2 \
+              --title "OrcaBrick 2.4.2-1 for Windows" \
+              --notes "OrcaSlicer 2.4.2 stable with Nanashi-style native Bricklaying (staggered walls). The checkbox is under Process > Strength > Walls. Built from commit d86273ae55b35aaba2429c5879df733d45097b29."
+          fi
+
+      - name: Write release-ready marker
+        run: |
+          asset=$(basename "$INSTALLER")
+          checksum=$(sha256sum "$INSTALLER" | cut -d' ' -f1)
+          download_url="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/$asset"
+          printf '# OrcaBrick installer is ready\n\nDirect download: %s\n\nSHA-256: %s\n' "$download_url" "$checksum" > release-ready.md
+          encoded=$(base64 -w0 release-ready.md)
+          gh api --method PUT "repos/$GITHUB_REPOSITORY/contents/ORCABRICK_RELEASE_READY.md" \
+            -f message="Mark OrcaBrick release ready" \
+            -f content="$encoded" \
+            -f branch=orcabrick-2.4.2
