@@ -1,0 +1,30 @@
+name: Build OrcaBrick Windows
+
+on:
+  push:
+    branches:
+      - orcabrick-2.4.2
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'version.inc'
+      - '.github/workflows/orcabrick_windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: orcabrick-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build_windows_x64:
+    name: Build Windows x64 installer
+    uses: ./.github/workflows/build_check_cache.yml
+    with:
+      os: windows-latest
+      arch: x64
+      build-deps-only: false
+      force-build: false
+    secrets: inherit
