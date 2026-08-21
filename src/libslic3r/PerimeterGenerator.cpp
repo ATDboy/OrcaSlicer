@@ -522,6 +522,24 @@ static ExtrusionEntityCollection traverse_extrusions(const PerimeterGenerator& p
             extrusion_paths_append(paths, *extrusion, role, is_external ? perimeter_generator.ext_perimeter_flow : perimeter_generator.perimeter_flow);
         }
 
+        auto stagger_path = [&perimeter_generator](ExtrusionPath &cur_path) {
+            if (perimeter_generator.number_of_layers < 4 || perimeter_generator.layer_id < 0)
+                return;
+            const size_t layer_id = static_cast<size_t>(perimeter_generator.layer_id);
+
+            if (layer_id == 1) {
+                cur_path.extrusion_multiplier = 1.5;
+            } else if (layer_id == perimeter_generator.number_of_layers - 2) {
+                cur_path.extrusion_multiplier = 0.5;
+            }
+
+            // Match Nanashi's wall stack: stagger all odd walls except the
+            // penultimate object layer, which closes the stack at half flow.
+            if (layer_id != perimeter_generator.number_of_layers - 2) {
+                cur_path.z_offset = 0.5;
+            }
+        };
+
         // Append paths to collection.
         if (!paths.empty()) {
             if (extrusion->is_closed) {
@@ -538,6 +556,11 @@ static ExtrusionEntityCollection traverse_extrusions(const PerimeterGenerator& p
                     assert(std::prev(it)->polyline.last_point() == it->polyline.first_point());
                 }
                 assert(extrusion_loop.paths.front().first_point() == extrusion_loop.paths.back().last_point());
+                // All odd perimeters are staggered up by half the layer height.
+                if (perimeter_generator.config->staggered_perimeters && extrusion->inset_idx % 2 == 1) {
+                    for (ExtrusionPath &cur_path : extrusion_loop.paths)
+                        stagger_path(cur_path);
+                }
                 extrusion_coll.append(std::move(extrusion_loop));
                 // Orca: Reverse the order of paths for thin wall holes. We define thin wall hole as a hole with only one perimeter.
                 const bool thin_wall_hole = !pg_extrusion.is_contour && pg_extrusions.size() == 2;
@@ -561,6 +584,12 @@ static ExtrusionEntityCollection traverse_extrusions(const PerimeterGenerator& p
                         multi_path = ExtrusionMultiPath();
                     }
                     multi_path.paths.emplace_back(std::move(*it_path));
+                }
+
+                // All odd perimeters are staggered up by half the layer height.
+                if (perimeter_generator.config->staggered_perimeters && extrusion->inset_idx % 2 == 1) {
+                    for (ExtrusionPath &cur_path : multi_path.paths)
+                        stagger_path(cur_path);
                 }
 
                 extrusion_coll.append(ExtrusionMultiPath(std::move(multi_path)));
@@ -2363,8 +2392,17 @@ void PerimeterGenerator::process_arachne()
             }
         }
 
+        // Print nominal-Z walls before the raised walls while preserving the
+        // path planner's order inside each group.
+        if (this->config->staggered_perimeters) {
+            std::stable_sort(ordered_extrusions.begin(), ordered_extrusions.end(),
+                [](const PerimeterGeneratorArachneExtrusion &lhs, const PerimeterGeneratorArachneExtrusion &rhs) {
+                    return lhs.extrusion->inset_idx % 2 < rhs.extrusion->inset_idx % 2;
+                });
+        }
+
        // printf("New Layer: Layer ID %d\n",layer_id); //debug - new layer
-        if (this->config->wall_sequence == WallSequence::InnerOuterInner && layer_id > 0) { // only enable inner outer inner algorithm after first layer
+        if (this->config->wall_sequence == WallSequence::InnerOuterInner && layer_id > 0 && !this->config->staggered_perimeters ) { // only enable inner outer inner algorithm after first layer
             if (ordered_extrusions.size() > 2) { // 3 walls minimum needed to do inner outer inner ordering
                 int position = 0; // index to run the re-ordering for multiple external perimeters in a single island.
                 int arr_i, arr_j = 0;    // indexes to run through the walls in the for loops

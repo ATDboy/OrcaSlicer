@@ -6350,16 +6350,22 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
         description += " (bridge)";
 
     const ExtrusionPathSloped* sloped = dynamic_cast<const ExtrusionPathSloped*>(&path);
+    const bool should_apply_staggered_offset =
+        sloped == nullptr && !path.z_contoured && !is_approx(path.z_offset, 0.0f);
+    // path.z_offset is expressed in layer-height units.
+    const double target_z = should_apply_staggered_offset ?
+        m_nominal_z + path.z_offset * path.height : m_nominal_z;
 
     const auto get_sloped_z = [&sloped, this](double z_ratio) {
         const auto height = sloped->height;
-        return lerp(m_nominal_z - height, m_nominal_z, z_ratio);
+        const auto z_offset = sloped->z_offset;
+        return lerp(m_nominal_z + z_offset * height - height, m_nominal_z + z_offset * height, z_ratio);
     };
 
     bool slope_need_z_travel = false;
     if (sloped != nullptr && !sloped->is_flat()) {
-        auto target_z = get_sloped_z(sloped->slope_begin.z_ratio);
-        slope_need_z_travel = m_writer.will_move_z(target_z);
+        auto slope_target_z = get_sloped_z(sloped->slope_begin.z_ratio);
+        slope_need_z_travel = m_writer.will_move_z(slope_target_z);
     }
     // Move to first point of extrusion path
     // path is 2D. But in slope lift case, lift z is done in travel_to function.
@@ -6367,21 +6373,22 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
     Point first_point = path.first_point();
     if (!m_last_pos_defined || m_last_pos.to_point() != first_point || m_need_change_layer_lift_z || slope_need_z_travel) {
         const bool _last_pos_undefined = !m_last_pos_defined;
-
         double z = DBL_MAX;
         if (sloped != nullptr) {
-            z =  get_sloped_z(sloped->slope_begin.z_ratio);
+            z = get_sloped_z(sloped->slope_begin.z_ratio);
         } else if (path.z_contoured && !path.polyline.lines().empty()) {
             z = unscale_(path.polyline.lines().begin()->a.z()) + m_nominal_z;
+        } else if (should_apply_staggered_offset) {
+            z = target_z;
         }
 
         gcode += this->travel_to(first_point, path.role(), "move to first " + description + " point", z);
 
-        // Orca: ensure Z matches planned layer height
+        // Orca: ensure Z matches planned path Z
         if (!slope_need_z_travel && (_last_pos_undefined || m_need_change_layer_lift_z)) {
             const std::string z_sync_comment = _last_pos_undefined ?
-                "ensure Z matches planned layer height" : ""; // no comment for normal layer-Z lift
-            gcode += this->writer().travel_to_z(m_nominal_z, z_sync_comment, true);
+                "ensure Z matches planned path Z" : ""; // no comment for normal layer-Z lift
+            gcode += this->writer().travel_to_z(target_z, z_sync_comment, true);
         }
         m_need_change_layer_lift_z = false;
     }
@@ -6395,8 +6402,9 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
     }
     if (!path.z_contoured && sloped == nullptr) {
         double current_z = m_writer.get_position().z();
-        if (GCodeFormatter::quantize_xyzf(current_z) != GCodeFormatter::quantize_xyzf(m_nominal_z)) {
-            gcode += this->writer().travel_to_z(m_nominal_z, "reset Z after contouring", true);
+        if (GCodeFormatter::quantize_xyzf(current_z) != GCodeFormatter::quantize_xyzf(target_z)) {
+            gcode += this->writer().travel_to_z(target_z,
+                should_apply_staggered_offset ? "set Z for staggered perimeter" : "reset Z after path-specific offset", true);
         }
     }
 
@@ -6467,7 +6475,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
     // calculate effective extrusion length per distance unit (e_per_mm)
     double filament_flow_ratio = FILAMENT_CONFIG(filament_flow_ratio);
     // We set _mm3_per_mm to effectove flow = Geometric volume * print flow ratio * filament flow ratio * role-based-flow-ratios
-    auto _mm3_per_mm = path.mm3_per_mm * this->config().print_flow_ratio;
+    auto _mm3_per_mm = path.mm3_per_mm * path.extrusion_multiplier * this->config().print_flow_ratio;
     _mm3_per_mm *= filament_flow_ratio;
 
     if (path.role() == erTopSolidInfill) {
@@ -6505,6 +6513,10 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
         if (this->on_first_layer() && (path.role() != erBrim && path.role() != erSkirt)) {
             _mm3_per_mm *= m_config.first_layer_flow_ratio;
         }
+    }
+
+    if (path.role() == erPerimeter && should_apply_staggered_offset) {
+        _mm3_per_mm *= m_config.staggered_perimeter_flow_ratio;
     }
 
     // Effective extrusion length per distance unit = (filament_flow_ratio/cross_section) * mm3_per_mm / print flow ratio

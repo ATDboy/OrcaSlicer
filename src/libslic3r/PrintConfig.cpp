@@ -6679,6 +6679,23 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 
+    def = this->add("staggered_perimeters", coBool);
+    def->label = L("Bricklaying (staggered walls)");
+    def->category = L("Strength");
+    def->tooltip = L("Experimental: raises alternating inner walls by half a layer to improve layer adhesion and wall strength.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
+    def = this->add("staggered_perimeter_flow_ratio", coFloat);
+    def->label = L("Staggered wall flow ratio");
+    def->category = L("Strength");
+    def->tooltip = L("This factor affects the amount of material for staggered inner walls.\n\n"
+                     "The actual staggered inner wall flow is calculated by multiplying this value by the current wall flow.");
+    def->min = 0;
+    def->max = 2;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(1));
+
     def = this->add("change_filament_gcode", coString);
     def->label = L("Change filament G-code");
     def->tooltip = L("This G-code is inserted when filament is changed, including T commands to trigger tool change.");

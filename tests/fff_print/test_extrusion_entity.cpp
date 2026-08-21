@@ -84,3 +84,38 @@ SCENARIO("ExtrusionEntityCollection: Polygon flattening", "[ExtrusionEntity]") {
         }
     }
 }
+
+SCENARIO("ExtrusionPath preserves Bricklaying metadata", "[ExtrusionEntity][Bricklaying]")
+{
+    ExtrusionPath source {erInternalPerimeter, 1.0, 0.45f, 0.20f};
+    source.z_offset            = 0.5f;
+    source.extrusion_multiplier = 1.5f;
+    source.polyline.append(Point3(0, 0, 0));
+    source.polyline.append(Point3(scale_(10.0), 0, 0));
+
+    SECTION("copy construction") {
+        const ExtrusionPath copy(source);
+        CHECK(copy.z_offset == Catch::Approx(0.5f));
+        CHECK(copy.extrusion_multiplier == Catch::Approx(1.5f));
+    }
+
+    SECTION("move construction") {
+        const ExtrusionPath moved(std::move(source));
+        CHECK(moved.z_offset == Catch::Approx(0.5f));
+        CHECK(moved.extrusion_multiplier == Catch::Approx(1.5f));
+    }
+
+    SECTION("copy assignment") {
+        ExtrusionPath copy;
+        copy = source;
+        CHECK(copy.z_offset == Catch::Approx(0.5f));
+        CHECK(copy.extrusion_multiplier == Catch::Approx(1.5f));
+    }
+
+    SECTION("move assignment") {
+        ExtrusionPath moved;
+        moved = std::move(source);
+        CHECK(moved.z_offset == Catch::Approx(0.5f));
+        CHECK(moved.extrusion_multiplier == Catch::Approx(1.5f));
+    }
+}

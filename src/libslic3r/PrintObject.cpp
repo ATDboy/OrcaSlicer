@@ -1436,6 +1436,7 @@ bool PrintObject::invalidate_state_by_config_options(
             || opt_key == "bottom_solid_infill_flow_ratio"
             || opt_key == "outer_wall_flow_ratio"
             || opt_key == "inner_wall_flow_ratio"
+            || opt_key == "staggered_perimeter_flow_ratio"
             || opt_key == "overhang_flow_ratio"
             || opt_key == "sparse_infill_flow_ratio"
             || opt_key == "internal_solid_infill_flow_ratio"

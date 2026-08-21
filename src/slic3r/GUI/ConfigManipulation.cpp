@@ -349,10 +349,11 @@ void ConfigManipulation::update_print_fff_config(DynamicPrintConfig* config, con
            sparse_infill_density == 0 &&
            ! config->opt_bool("enable_support") &&
            config->opt_int("enforce_support_layers") == 0 &&
-           ! config->opt_bool("detect_thin_wall") &&
-           ! config->opt_bool("overhang_reverse") &&
+            ! config->opt_bool("detect_thin_wall") &&
+            ! config->opt_bool("overhang_reverse") &&
             config->opt_enum<TimelapseType>("timelapse_type") == TimelapseType::tlTraditional &&
-            !config->opt_bool("enable_wrapping_detection")))
+            !config->opt_bool("enable_wrapping_detection") &&
+            !config->opt_bool("staggered_perimeters")))
     {
         DynamicPrintConfig new_conf = *config;
         auto answer = show_spiral_mode_settings_dialog(is_object_config);
@@ -367,12 +368,37 @@ void ConfigManipulation::update_print_fff_config(DynamicPrintConfig* config, con
             new_conf.set_key_value("overhang_reverse", new ConfigOptionBool(false));
             new_conf.set_key_value("timelapse_type", new ConfigOptionEnum<TimelapseType>(tlTraditional));
             new_conf.set_key_value("enable_wrapping_detection", new ConfigOptionBool(false));
+            new_conf.set_key_value("staggered_perimeters", new ConfigOptionBool(false));
             sparse_infill_density = 0;
             timelapse_type = TimelapseType::tlTraditional;
             support = false;
         }
         else {
             new_conf.set_key_value("spiral_mode", new ConfigOptionBool(false));
+        }
+        apply(config, &new_conf);
+        is_msg_dlg_already_exist = false;
+    }
+
+    const bool have_arachne = config->opt_enum<PerimeterGeneratorType>("wall_generator") == PerimeterGeneratorType::Arachne;
+    if (!is_plate_config &&
+        config->opt_bool("staggered_perimeters") &&
+        (std::abs(config->opt_float("initial_layer_print_height") - config->opt_float("layer_height")) > EPSILON ||
+        !(*config->option<ConfigOptionFloatOrPercent>("top_surface_line_width") ==
+          *config->option<ConfigOptionFloatOrPercent>("outer_wall_line_width")) ||
+            !have_arachne ||
+            config->opt_bool("spiral_mode")))
+    {
+        DynamicPrintConfig new_conf = *config;
+        auto answer = show_staggered_perimeter_settings_dialog();
+        if (answer == wxID_YES) {
+            new_conf.set_key_value("initial_layer_print_height", config->option<ConfigOptionFloat>("layer_height")->clone());
+            new_conf.set_key_value("top_surface_line_width", config->option<ConfigOptionFloatOrPercent>("outer_wall_line_width")->clone() );
+            new_conf.set_key_value("wall_generator", new ConfigOptionEnum<PerimeterGeneratorType>(PerimeterGeneratorType::Arachne));
+            new_conf.set_key_value("spiral_mode", new ConfigOptionBool(false));
+        }
+        else {
+            new_conf.set_key_value("staggered_perimeters", new ConfigOptionBool(false));
         }
         apply(config, &new_conf);
         is_msg_dlg_already_exist = false;
@@ -895,6 +921,7 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
 
     bool have_avoid_crossing_perimeters = config->opt_bool("reduce_crossing_wall");
     toggle_line("max_travel_detour_distance", have_avoid_crossing_perimeters);
+    toggle_line("staggered_perimeter_flow_ratio", config->opt_bool("staggered_perimeters"));
 
     bool has_set_other_flow_ratios = config->opt_bool("set_other_flow_ratios");
     for (auto el : {"first_layer_flow_ratio", "outer_wall_flow_ratio", "inner_wall_flow_ratio", "overhang_flow_ratio", "sparse_infill_flow_ratio", "internal_solid_infill_flow_ratio", "gap_fill_flow_ratio", "support_flow_ratio", "support_interface_flow_ratio"})
@@ -1109,6 +1136,22 @@ int ConfigManipulation::show_spiral_mode_settings_dialog(bool is_object_config)
     is_msg_dlg_already_exist = false;
     if (is_object_config)
         answer = wxID_YES;
+    return answer;
+}
+
+int ConfigManipulation::show_staggered_perimeter_settings_dialog()
+{
+    wxString msg_text = _(L("Bricklaying is experimental. It currently requires the first layer height to match the normal layer height, the top surface line width to match the outer wall line width, and the Arachne wall generator."));
+    msg_text += "\n\n" + _(L("Change these settings automatically?\n"
+                               "Yes - Change the settings and enable Bricklaying\n"
+                               "No - Leave Bricklaying disabled"));
+
+    MessageDialog dialog(m_msg_dlg_parent, msg_text, "",
+        wxICON_WARNING |  wxYES | wxNO );
+
+    is_msg_dlg_already_exist = true;
+    auto answer = dialog.ShowModal();
+    is_msg_dlg_already_exist = false;
     return answer;
 }
 
