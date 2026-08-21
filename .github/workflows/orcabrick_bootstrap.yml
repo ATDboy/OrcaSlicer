@@ -5,7 +5,6 @@ on:
     branches:
       - orcabrick-2.4.2
     paths:
-      - 'patches/orcabrick-2.4.2.patch'
       - '.github/workflows/orcabrick_bootstrap.yml'
 
 permissions:
@@ -25,10 +24,9 @@ jobs:
       - name: Apply the reviewed source patch
         shell: bash
         run: |
-          git apply --check patches/orcabrick-2.4.2.patch
-          git apply --index patches/orcabrick-2.4.2.patch
+          git apply --check --exclude=.github/workflows/orcabrick_windows.yml patches/orcabrick-2.4.2.patch
+          git apply --index --exclude=.github/workflows/orcabrick_windows.yml patches/orcabrick-2.4.2.patch
           git rm patches/orcabrick-2.4.2.patch
-          git rm .github/workflows/orcabrick_bootstrap.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "Port Nanashi bricklaying to OrcaSlicer 2.4.2"
