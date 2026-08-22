@@ -12,6 +12,7 @@
 #include "wx/graphics.h"
 #include <wx/listimpl.cpp>
 #include <wx/display.h>
+#include <wx/clrpicker.h>
 #include "NetworkTestDialog.hpp"
 #include "Widgets/StaticLine.hpp"
 #include "Widgets/RadioGroup.hpp"
@@ -941,6 +942,24 @@ wxBoxSizer* PreferencesDialog::create_item_darkmode(wxString title,wxString tool
     return m_sizer;
 }
 
+wxBoxSizer* PreferencesDialog::create_item_accent_color()
+{
+    const wxString tip = _L("Choose the accent colour used by buttons, highlights and controls. Restart OrcaBrick after changing it.");
+    wxBoxSizer *sizer = create_item_label(_L("Accent colour"), tip);
+    wxColour color(from_u8(app_config->get("accent_color")));
+    if (!color.IsOk())
+        color = wxColour("#00E5FF");
+    auto *picker = new wxColourPickerCtrl(m_parent, wxID_ANY, color);
+    picker->SetToolTip(tip);
+    sizer->Add(picker, 0, wxALIGN_CENTER);
+    picker->Bind(wxEVT_COLOURPICKER_CHANGED, [this, picker](wxColourPickerEvent &e) {
+        app_config->set("accent_color", into_u8(picker->GetColour().GetAsString(wxC2S_HTML_SYNTAX)));
+        app_config->save();
+        e.Skip();
+    });
+    return sizer;
+}
+
 void PreferencesDialog::set_dark_mode()
 {
 #ifdef __WINDOWS__
@@ -1550,6 +1569,8 @@ void PreferencesDialog::create_items()
     auto item_darkmode         = create_item_darkmode(_L("Enable dark mode"), "", "dark_color_mode");
     g_sizer->Add(item_darkmode);
 #endif
+
+    g_sizer->Add(create_item_accent_color());
 
     auto item_single_instance  = create_item_checkbox(_L("Allow only one OrcaSlicer instance"),
     #if __APPLE__

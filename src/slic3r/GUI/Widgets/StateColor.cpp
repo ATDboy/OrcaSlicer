@@ -2,6 +2,7 @@
 #include <cmath>
 
 static bool gDarkMode = false;
+static wxColour gAccentColor("#00E5FF");
 
 static bool operator<(wxColour const &l, wxColour const &r) { return l.GetRGBA() < r.GetRGBA(); }
 
@@ -187,8 +188,29 @@ std::map<wxColour, wxColour> const & StateColor::GetDarkMap()
 
 void StateColor::SetDarkMode(bool dark) { gDarkMode = dark; }
 
+void StateColor::SetAccentColor(const wxColour &color)
+{
+    if (color.IsOk())
+        gAccentColor = color;
+}
+
+wxColour StateColor::AccentColor() { return gAccentColor; }
+wxColour StateColor::AccentHoverColor() { return LightenDarkenColor(gAccentColor, gDarkMode ? -10 : -15); }
+
+static wxColour apply_accent(const wxColour &color)
+{
+    if (color == wxColour("#009688") || color == wxColour("#00675b"))
+        return StateColor::AccentColor();
+    if (color == wxColour("#26A69A") || color == wxColour("#008172"))
+        return StateColor::AccentHoverColor();
+    return color;
+}
+
 inline wxColour darkModeColorFor2(wxColour const &color)
 {
+    const wxColour accented = apply_accent(color);
+    if (accented != color)
+        return accented;
     if (!gDarkMode)
         return color;
     auto iter = gDarkColors.find(color);
@@ -205,6 +227,9 @@ std::map<wxColour, wxColour> revert(std::map<wxColour, wxColour> const & map)
 
 wxColour StateColor::lightModeColorFor(wxColour const &color)
 {
+    const wxColour accented = apply_accent(color);
+    if (accented != color)
+        return accented;
     static std::map<wxColour, wxColour> gLightColors = revert(gDarkColors);
     auto iter = gLightColors.find(color);
     if (iter != gLightColors.end()) return iter->second;

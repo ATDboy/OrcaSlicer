@@ -31,6 +31,9 @@ public:
     static double LAB_Delta_E(const wxColour& c1, const wxColour& c2);
 
     static void SetDarkMode(bool dark);
+    static void SetAccentColor(const wxColour &color);
+    static wxColour AccentColor();
+    static wxColour AccentHoverColor();
 
     static std::map<wxColour, wxColour> const & GetDarkMap();
     static wxColour darkModeColorFor(wxColour const &color);

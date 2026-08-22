@@ -313,6 +313,10 @@ void AppConfig::set_defaults()
     if (get("show_axes").empty())
         set_bool("show_axes", true);
 
+    // OrcaBrick's default accent. Users may override this in Preferences.
+    if (get("accent_color").empty())
+        set("accent_color", "#00E5FF");
+
     if (get("show_labels").empty())
         set_bool("show_labels", false);
 

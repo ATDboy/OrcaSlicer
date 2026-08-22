@@ -3731,6 +3731,8 @@ const wxColour GUI_App::get_label_default_clr_modified()
 
 void GUI_App::init_label_colours()
 {
+    wxColour accent(from_u8(app_config->get("accent_color")));
+    StateColor::SetAccentColor(accent.IsOk() ? accent : wxColour("#00E5FF"));
     bool is_dark_mode = dark_mode();
     m_color_label_modified = is_dark_mode ? wxColour("#F1754E") : wxColour("#F1754E");
     m_color_label_sys      = is_dark_mode ? wxColour("#B2B3B5") : wxColour("#363636");
@@ -6020,7 +6022,7 @@ std::string GUI_App::format_display_version()
 {
     if (!version_display.empty()) return version_display;
 
-    version_display = SoftFever_VERSION;
+    version_display = "2.4.2 (OrcaBrick build 2)";
     return version_display;
 }
 

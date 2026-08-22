@@ -6682,14 +6682,14 @@ void PrintConfigDef::init_fff_params()
     def = this->add("staggered_perimeters", coBool);
     def->label = L("Bricklaying (staggered walls)");
     def->category = L("Strength");
-    def->tooltip = L("Experimental: raises alternating inner walls by half a layer to improve layer adhesion and wall strength.");
+    def->tooltip = L("Experimental: raises alternating inner walls by half a layer to improve layer adhesion and wall strength. Use a fixed layer height, at least 3 walls, and inspect every sliced layer in Preview before printing.");
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 
     def = this->add("staggered_perimeter_flow_ratio", coFloat);
     def->label = L("Staggered wall flow ratio");
     def->category = L("Strength");
-    def->tooltip = L("This factor affects the amount of material for staggered inner walls.\n\n"
+    def->tooltip = L("This factor affects only the staggered inner walls. Start at 1.00. Community tests suggest that small increases around 1.02-1.05 can help some materials, but excessive flow can reduce strength or cause collisions. Test one small part before changing it.\n\n"
                      "The actual staggered inner wall flow is calculated by multiplying this value by the current wall flow.");
     def->min = 0;
     def->max = 2;

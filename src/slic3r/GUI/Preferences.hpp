@@ -90,6 +90,7 @@ public:
     wxBoxSizer *create_item_loglevel_combobox(wxString title, wxString tooltip, std::vector<wxString> vlist);
     wxBoxSizer *create_item_checkbox(wxString title, wxString tooltip, std::string param, const wxString secondary_title = "", const wxString wiki_url = "");
     wxBoxSizer *create_item_darkmode(wxString title,wxString tooltip, std::string param);
+    wxBoxSizer *create_item_accent_color();
     void set_dark_mode();
     wxBoxSizer *create_item_button(wxString title, wxString title2, wxString tooltip, wxString tooltip2, std::function<void()> onclick, const wxString wiki_url = "");
     wxBoxSizer *create_item_downloads(wxString title, wxString tooltip);
