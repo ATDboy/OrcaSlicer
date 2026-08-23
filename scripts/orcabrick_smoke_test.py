@@ -120,17 +120,23 @@ def run_slice(
     )
 
 
-def staggered_z_values(gcode: str) -> list[float]:
+def motion_z_values(gcode: str) -> list[float]:
+    """Return explicit Z words from motion commands, independent of comments."""
     values: list[float] = []
-    marker = "set Z for staggered perimeter"
-    for line in gcode.splitlines():
-        if marker not in line:
+    motion = re.compile(r"^\s*G(?:0|1|2|3)\b", re.IGNORECASE)
+    z_word = re.compile(r"(?:^|\s)Z([-+]?(?:\d+(?:\.\d*)?|\.\d+))", re.IGNORECASE)
+    for raw_line in gcode.splitlines():
+        command = raw_line.split(";", 1)[0]
+        if not motion.search(command):
             continue
-        match = re.search(r"(?:^|\s)Z(-?\d+(?:\.\d+)?)", line)
+        match = z_word.search(command)
         if match:
             values.append(float(match.group(1)))
     return values
 
+
+def rounded_unique(values: list[float]) -> list[float]:
+    return sorted({round(value, 5) for value in values})
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -198,32 +204,37 @@ def main() -> int:
         workdir / "on",
     )
 
-    off_values = staggered_z_values(gcode_off)
-    on_values = staggered_z_values(gcode_on)
-    if off_values:
-        raise RuntimeError(
-            f"Bricklaying OFF unexpectedly produced {len(off_values)} staggered Z moves"
-        )
-    if not on_values:
-        raise RuntimeError(
-            "Bricklaying ON produced no 'set Z for staggered perimeter' moves; "
-            "the checkbox is not changing generated G-code"
-        )
+    off_values = motion_z_values(gcode_off)
+    on_values = motion_z_values(gcode_on)
+    off_unique = rounded_unique(off_values)
+    on_unique = rounded_unique(on_values)
+
     if gcode_on == gcode_off:
         raise RuntimeError("Bricklaying ON and OFF produced identical G-code")
 
+    tolerance = 1e-4
+    on_only_values = [
+        value
+        for value in on_unique
+        if not any(abs(value - off_value) <= tolerance for off_value in off_unique)
+    ]
     half_layer_values = [
-        value for value in on_values if abs((value / 0.2) - round(value / 0.2)) > 0.1
+        value
+        for value in on_only_values
+        if abs((value / 0.2) - round(value / 0.2)) > 0.1
     ]
     if not half_layer_values:
         raise RuntimeError(
-            "Bricklaying emitted marked Z moves, but none were between 0.20 mm nominal layers"
+            "Bricklaying ON produced no exclusive between-layer Z positions. "
+            f"OFF Z sample={off_unique[:30]}; ON Z sample={on_unique[:30]}"
         )
 
     summary = {
         "result": "PASS",
-        "staggered_move_count": len(on_values),
-        "first_staggered_z_values_mm": on_values[:10],
+        "on_only_z_count": len(on_only_values),
+        "first_on_only_z_values_mm": on_only_values[:10],
+        "half_layer_z_count": len(half_layer_values),
+        "first_half_layer_z_values_mm": half_layer_values[:10],
         "model": model.name,
         "layer_height_mm": 0.2,
         "wall_loops": 3,
