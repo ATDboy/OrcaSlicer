@@ -7,6 +7,7 @@ on:
     paths:
       - 'src/**'
       - 'tests/**'
+      - 'scripts/orcabrick_smoke_test.py'
       - 'version.inc'
       - '.github/workflows/orcabrick_windows.yml'
       - '.github/workflows/build_orca.yml'
