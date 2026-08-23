@@ -8,7 +8,7 @@ on:
       - 'src/**'
       - 'tests/**'
       - 'version.inc'
-      - '.github/workflows/orcabrick_windows.yml'
+      - '.github/workflows/orcabrick_windows.yml'\n      - '.github/workflows/build_orca.yml'
   workflow_dispatch:
 
 permissions:
