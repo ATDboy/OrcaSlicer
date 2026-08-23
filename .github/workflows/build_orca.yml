@@ -340,6 +340,20 @@ jobs:
           if ($arch -eq "arm64") { .\build_release_vs.bat slicer arm64 } else { .\build_release_vs.bat slicer }
         shell: pwsh
 
+      - name: Prove Bricklaying changes sliced G-code
+        if: runner.os == 'Windows' && inputs.arch == 'x64' && !vars.SELF_HOSTED
+        working-directory: ${{ github.workspace }}
+        shell: pwsh
+        run: |
+          $exe = "${{ github.workspace }}/build/OrcaSlicer/orca-slicer.exe"
+          if (-not (Test-Path $exe)) {
+            throw "Built OrcaBrick executable not found at $exe"
+          }
+          python scripts/orcabrick_smoke_test.py `
+            --exe $exe `
+            --repo "${{ github.workspace }}" `
+            --workdir "${{ runner.temp }}/orcabrick-smoke-test"
+
       # NSIS is x86-only; it runs (and the installer it emits runs) under ARM64's
       # x86 emulation, packaging the native arm64 payload from build-arm64.
       - name: Create installer Win
