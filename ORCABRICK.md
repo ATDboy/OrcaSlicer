@@ -5,6 +5,9 @@ OrcaBrick is an experimental OrcaSlicer 2.4.2 fork with native Bricklaying
 
 ## Current release status
 
+Build 4 fixes Bricklaying on disconnected Arachne multipaths, preserves Arachne's dependency ordering while preferring nominal-Z walls, and verifies half-layer inner-wall extrusion without depending on travel comments.
+
+
 Do not treat an installer as verified merely because it compiles. A release is
 ready only when the Windows workflow is green and its `OrcaBrick_GCode_Proof`
 artifact reports `"result": "PASS"`. The proof slices the same cube with
@@ -44,15 +47,15 @@ implementation.
 
 ## Appearance and identity
 
-Build 3 uses neon cyan (`#00E5FF`) for the main accent controls by default.
+Build 4 uses neon cyan (`#00E5FF`) for the main accent controls by default.
 Change it under **Preferences > General > Accent colour** and restart
 OrcaBrick. Some specialized icons and views use their own semantic colors and
 are intentionally not recolored.
 
 The visible program name is **OrcaBrick**, and the visible version is
-**2.4.2 - build 3**. The internal application key remains OrcaSlicer so existing
+**2.4.2 - build 4**. The internal application key remains OrcaSlicer so existing
 printer, filament, and process profiles stay compatible. The technical build
-version is `2.4.2+OrcaBrick3` and is not used as the normal display name.
+version is `2.4.2+OrcaBrick4` and is not used as the normal display name.
 
 ## Sources
 
