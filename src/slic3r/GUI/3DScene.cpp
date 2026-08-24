@@ -6,6 +6,7 @@
 #include "GUI_Colors.hpp"
 #include "Plater.hpp"
 #include "BitmapCache.hpp"
+#include "Widgets/StateColor.hpp"
 #include "Camera.hpp"
 
 #include "libslic3r/BuildVolume.hpp"
@@ -1523,8 +1524,23 @@ void GLVolumeCollection::update_colors_by_extruder(const DynamicPrintConfig *con
         for (unsigned int i = 0; i < colors_count; ++i) {
             ColorRGBA rgba;
             const std::string& fil_color = config->opt_string("filament_colour", i);
-            if (decode_color(fil_color, rgba))
+            const std::string& system_default_color =
+                print_config_def.get("filament_colour")->get_default_value<ConfigOptionStrings>()->values.front();
+
+            // Orca stores its built-in fallback as a regular filament color. Treat only
+            // that untouched system value as "automatic" so the model follows the
+            // selected OrcaBrick accent. User-picked filament and AMS colors stay exact.
+            if (fil_color.empty() || fil_color == system_default_color) {
+                const wxColour accent = StateColor::AccentColor();
+                rgba = ColorRGBA(
+                    accent.Red() / 255.0f,
+                    accent.Green() / 255.0f,
+                    accent.Blue() / 255.0f,
+                    1.0f);
+                colors[i] = { accent.GetAsString(wxC2S_HTML_SYNTAX).ToStdString(), rgba };
+            } else if (decode_color(fil_color, rgba)) {
                 colors[i] = { fil_color, rgba };
+            }
         }
     }
 
