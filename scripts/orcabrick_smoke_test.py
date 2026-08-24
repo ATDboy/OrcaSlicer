@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 LAYER_HEIGHT_MM = 0.2
-STAGGER_MARKER = "set z for staggered perimeter"
+PERIMETER_MOVE_COMMENT = "move to first perimeter point"
 MOTION_RE = re.compile(r"^\s*G(?:0|1|2|3)\b", re.IGNORECASE)
 WORD_RE = re.compile(
     r"(?:^|\s)([XYZE])([-+]?(?:\d+(?:\.\d*)?|\.\d+))",
@@ -157,20 +157,31 @@ def rounded_unique(values: list[float]) -> list[float]:
 
 
 def staggered_events(gcode: str) -> list[dict[str, Any]]:
-    """Find each explicit Bricklaying Z move and prove extrusion follows it."""
+    """Find half-layer perimeter starts and prove they extrude an inner wall.
+
+    Orca normally emits the Bricklaying Z change on the travel move to the
+    perimeter.  A later fallback path can emit a dedicated stagger comment,
+    but a correct proof must not depend on that normally unreachable comment.
+    """
     lines = gcode.splitlines()
     events: list[dict[str, Any]] = []
     for index, raw_line in enumerate(lines):
-        if STAGGER_MARKER not in raw_line.lower():
+        if PERIMETER_MOVE_COMMENT not in raw_line.lower():
             continue
         words = motion_words(raw_line)
         z_value = words.get("Z")
+        if z_value is None or not is_between_nominal_layers(z_value):
+            continue
+
         extrudes_before_next_z = False
         extrusion_line = None
+        extrusion_type = None
+        active_type = None
         for later_index in range(index + 1, len(lines)):
             later_line = lines[later_index]
-            if STAGGER_MARKER in later_line.lower():
-                break
+            stripped = later_line.strip()
+            if stripped.lower().startswith(";type:"):
+                active_type = stripped.split(":", 1)[1].strip()
             later_words = motion_words(later_line)
             if not later_words:
                 continue
@@ -183,13 +194,16 @@ def staggered_events(gcode: str) -> list[dict[str, Any]]:
             ):
                 extrudes_before_next_z = True
                 extrusion_line = later_index + 1
+                extrusion_type = active_type
                 break
         events.append(
             {
-                "marker_line": index + 1,
+                "perimeter_move_line": index + 1,
                 "z_mm": z_value,
                 "extrudes_before_next_z": extrudes_before_next_z,
                 "first_extrusion_line": extrusion_line,
+                "extrusion_type": extrusion_type,
+                "is_inner_wall": (extrusion_type or "").lower() == "inner wall",
             }
         )
     return events
@@ -207,7 +221,8 @@ def sha256_text(value: str) -> str:
 def parser_self_test() -> None:
     off = "G1 Z0.2 ; ensure Z matches planned layer height\nG1 X10 Y0 E0.5\n"
     on = (
-        "G1 Z0.3 ; set Z for staggered perimeter\n"
+        "G1 X0 Y0 Z0.3 ; move to first perimeter point\n"
+        ";TYPE:Inner wall\n"
         "G1 E0.1\n"
         "G1 X10 Y0 E0.5\n"
         "G1 Z0.4\n"
@@ -217,8 +232,94 @@ def parser_self_test() -> None:
     assert len(events) == 1
     assert events[0]["z_mm"] == 0.3
     assert events[0]["extrudes_before_next_z"]
+    assert events[0]["is_inner_wall"]
     assert is_between_nominal_layers(0.3)
     assert not is_between_nominal_layers(0.4)
+
+    outer = (
+        "G1 X0 Y0 Z0.3 ; move to first perimeter point\n"
+        ";TYPE:Outer wall\n"
+        "G1 X10 Y0 E0.5\n"
+    )
+    assert len(staggered_events(outer)) == 1
+    assert not staggered_events(outer)[0]["is_inner_wall"]
+
+
+def source_self_test(repository: Path) -> None:
+    """Catch version and packaging drift before starting the hour-long build."""
+    version_text = (repository / "version.inc").read_text(encoding="utf-8")
+    build_match = re.search(r'set\(ORCABRICK_BUILD\s+"([0-9]+)"\)', version_text)
+    version_match = re.search(
+        r'set\(SoftFever_VERSION\s+"([^"]+)"\)', version_text
+    )
+    if build_match is None or version_match is None:
+        raise RuntimeError("version.inc is missing OrcaBrick build metadata")
+
+    build = build_match.group(1)
+    version = version_match.group(1)
+    if "${" in version:
+        raise RuntimeError(
+            "SoftFever_VERSION must be literal because GitHub Actions reads "
+            "version.inc without evaluating CMake variables"
+        )
+    expected_suffix = f"+OrcaBrick{build}"
+    if not version.endswith(expected_suffix):
+        raise RuntimeError(
+            f"SoftFever_VERSION {version!r} does not match ORCABRICK_BUILD {build}"
+        )
+
+    cmake_text = (repository / "CMakeLists.txt").read_text(encoding="utf-8")
+    expected_cpack = (
+        'set (CPACK_PACKAGE_FILE_NAME '
+        '"OrcaBrick_Setup_${ORCA_VERSION_MAJOR}.${ORCA_VERSION_MINOR}.'
+        '${ORCA_VERSION_PATCH}_build_${ORCABRICK_BUILD}")'
+    )
+    if expected_cpack not in cmake_text:
+        raise RuntimeError("CMake installer name is not tied to ORCABRICK_BUILD")
+
+    workflow_text = (
+        repository / ".github" / "workflows" / "build_orca.yml"
+    ).read_text(encoding="utf-8")
+    expected_upload = (
+        "${{ github.workspace }}/${{ env.BUILD_DIR }}/"
+        "OrcaBrick_Setup_*${{ env.ARCH_SUFFIX }}.exe"
+    )
+    if expected_upload not in workflow_text:
+        raise RuntimeError("Installer artifact upload path does not match CPack output")
+    if workflow_text.index("Prove Bricklaying changes sliced G-code") > workflow_text.index(
+        "Create installer Win"
+    ):
+        raise RuntimeError("Bricklaying proof must run before installer creation")
+
+    required_source_wiring = {
+        "src/libslic3r/PrintConfig.cpp": (
+            'this->add("staggered_perimeters", coBool)',
+            'this->add("staggered_perimeter_flow_ratio", coFloat)',
+        ),
+        "src/libslic3r/PerimeterGenerator.cpp": (
+            "perimeter_generator.config->staggered_perimeters",
+            "cur_path.z_offset = 0.5",
+        ),
+        "src/libslic3r/GCode.cpp": (
+            "path.z_offset * path.height",
+            "m_config.staggered_perimeter_flow_ratio",
+        ),
+        "src/libslic3r/PrintObject.cpp": (
+            'opt_key == "staggered_perimeters"',
+            'opt_key == "staggered_perimeter_flow_ratio"',
+        ),
+        "src/slic3r/GUI/Tab.cpp": (
+            'append_single_option_line("staggered_perimeters")',
+            'append_single_option_line("staggered_perimeter_flow_ratio")',
+        ),
+    }
+    for relative_path, snippets in required_source_wiring.items():
+        source = (repository / relative_path).read_text(encoding="utf-8")
+        missing = [snippet for snippet in snippets if snippet not in source]
+        if missing:
+            raise RuntimeError(
+                f"{relative_path} is missing OrcaBrick wiring: {', '.join(missing)}"
+            )
 
 
 def run_proof(executable: Path, repository: Path, workdir: Path) -> int:
@@ -290,39 +391,37 @@ def run_proof(executable: Path, repository: Path, workdir: Path) -> int:
 
     off_events = staggered_events(gcode_off)
     on_events = staggered_events(gcode_on)
-    marker_z_values = [
+    event_z_values = [
         float(event["z_mm"]) for event in on_events if event["z_mm"] is not None
     ]
-    half_layer_marker_values = rounded_unique(
-        [value for value in marker_z_values if is_between_nominal_layers(value)]
-    )
+    half_layer_values = rounded_unique(event_z_values)
     non_extruding_events = [
         event for event in on_events if not event["extrudes_before_next_z"]
     ]
-    missing_z_events = [event for event in on_events if event["z_mm"] is None]
+    non_inner_wall_events = [event for event in on_events if not event["is_inner_wall"]]
 
     errors: list[str] = []
     if gcode_on == gcode_off:
         errors.append("Bricklaying ON and OFF produced identical G-code")
     if off_events:
         errors.append(
-            f"Bricklaying OFF unexpectedly contains {len(off_events)} stagger markers"
+            f"Bricklaying OFF unexpectedly contains {len(off_events)} half-layer perimeter moves"
         )
     if len(on_events) < 5:
         errors.append(
-            f"Bricklaying ON contains only {len(on_events)} stagger markers; expected at least 5"
-        )
-    if missing_z_events:
-        errors.append(
-            f"{len(missing_z_events)} stagger markers do not contain an explicit Z word"
+            f"Bricklaying ON contains only {len(on_events)} half-layer perimeter moves; expected at least 5"
         )
     if non_extruding_events:
         errors.append(
-            f"{len(non_extruding_events)} stagger markers are not followed by XY+E extrusion before the next Z move"
+            f"{len(non_extruding_events)} half-layer perimeter moves are not followed by XY+E extrusion before the next Z move"
         )
-    if len(half_layer_marker_values) < 3:
+    if non_inner_wall_events:
         errors.append(
-            "Bricklaying ON does not contain at least three distinct between-layer marker heights"
+            f"{len(non_inner_wall_events)} half-layer perimeter moves do not extrude an Inner wall"
+        )
+    if len(half_layer_values) < 3:
+        errors.append(
+            "Bricklaying ON does not contain at least three distinct half-layer perimeter heights"
         )
 
     summary = {
@@ -336,11 +435,14 @@ def run_proof(executable: Path, repository: Path, workdir: Path) -> int:
         "on_sha256": sha256_text(gcode_on),
         "off_explicit_z_count": len(motion_z_values(gcode_off)),
         "on_explicit_z_count": len(motion_z_values(gcode_on)),
-        "off_stagger_marker_count": len(off_events),
-        "on_stagger_marker_count": len(on_events),
-        "extruding_stagger_marker_count": len(on_events) - len(non_extruding_events),
-        "distinct_half_layer_marker_z_mm": half_layer_marker_values,
-        "first_stagger_events": on_events[:10],
+        "off_half_layer_perimeter_count": len(off_events),
+        "on_half_layer_perimeter_count": len(on_events),
+        "extruding_inner_wall_half_layer_count": sum(
+            event["extrudes_before_next_z"] and event["is_inner_wall"]
+            for event in on_events
+        ),
+        "distinct_half_layer_perimeter_z_mm": half_layer_values,
+        "first_half_layer_events": on_events[:10],
     }
     summary_path = workdir / "orcabrick-gcode-proof.json"
     summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
@@ -361,6 +463,8 @@ def main() -> int:
 
     if args.self_test:
         parser_self_test()
+        if args.repo is not None:
+            source_self_test(args.repo.resolve())
         print("OrcaBrick proof parser self-test: PASS")
         return 0
 

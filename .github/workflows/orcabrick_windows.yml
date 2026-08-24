@@ -39,7 +39,7 @@ jobs:
         shell: bash
         run: |
           python -m py_compile scripts/orcabrick_smoke_test.py
-          python scripts/orcabrick_smoke_test.py --self-test
+          python scripts/orcabrick_smoke_test.py --self-test --repo .
           git diff --check HEAD^ HEAD
 
   build_windows_x64:

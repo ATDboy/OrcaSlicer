@@ -8,9 +8,10 @@ OrcaBrick is an experimental OrcaSlicer 2.4.2 fork with native Bricklaying
 Do not treat an installer as verified merely because it compiles. A release is
 ready only when the Windows workflow is green and its `OrcaBrick_GCode_Proof`
 artifact reports `"result": "PASS"`. The proof slices the same cube with
-Bricklaying off and on. It requires Bricklaying-specific Z markers at several
-half-layer heights, real XY+E wall extrusion after every marker, and zero
-Bricklaying markers in the off file.
+Bricklaying off and on. It requires explicit inner-wall perimeter moves at
+several half-layer heights, real XY+E wall extrusion after every move, and zero
+half-layer perimeter moves in the off file. The check intentionally follows
+the emitted toolpaths rather than relying on optional G-code comments.
 
 The obsolete release-ready notice for the earlier, unverified installer has
 been removed.
