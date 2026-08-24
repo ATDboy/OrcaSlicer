@@ -19,6 +19,7 @@
 #define NANOSVGRAST_IMPLEMENTATION
 #include "nanosvg/nanosvgrast.h"
 #include "3DScene.hpp"
+#include "Widgets/StateColor.hpp"
 
 namespace Slic3r { namespace GUI {
 
@@ -324,6 +325,20 @@ wxBitmap* BitmapCache::load_svg(const std::string &bitmap_name, unsigned target_
 
     // map of color replaces
     std::map<std::string, std::string> replaces;
+
+    // SVG assets historically embed Orca's teal palette. Treat every shade in
+    // that palette as a theme token so icons, logos and toolbar artwork follow
+    // the user-selected accent instead of remaining hard-coded teal.
+    const std::string accent = StateColor::AccentColor().GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
+    const std::string accent_hover = StateColor::AccentHoverColor().GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
+    const auto replace_svg_color = [&replaces](const std::string &old_color, const std::string &new_color) {
+        replaces[old_color] = new_color;
+        replaces["\"" + old_color + "\""] = "\"" + new_color + "\"";
+    };
+    for (const char *color : {"#009688", "#00675B", "#00675b", "#00AE42", "#0x00AE42", "#52C7B8", "#52c7b8"})
+        replace_svg_color(color, accent);
+    for (const char *color : {"#26A69A", "#26a69a", "#008172"})
+        replace_svg_color(color, accent_hover);
     replaces["\"#0x00AE42\""] = "\"#009688\"";
     replaces["\"#00FF00\""] = "\"#52c7b8\"";
     if (dark_mode) {

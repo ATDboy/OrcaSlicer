@@ -944,7 +944,7 @@ wxBoxSizer* PreferencesDialog::create_item_darkmode(wxString title,wxString tool
 
 wxBoxSizer* PreferencesDialog::create_item_accent_color()
 {
-    const wxString tip = _L("Choose the accent colour used by buttons, highlights and controls. Restart OrcaBrick after changing it.");
+    const wxString tip = _L("Choose the accent colour used throughout buttons, highlights, controls, icons, logos and other themed artwork. Restart OrcaBrick after changing it.");
     wxBoxSizer *sizer = create_item_label(_L("Accent colour"), tip);
     wxColour color(from_u8(app_config->get("accent_color")));
     if (!color.IsOk())

@@ -37,6 +37,7 @@
 #include "Search.hpp"
 #include "BitmapCache.hpp"
 #include "GUI_App.hpp"
+#include "Widgets/StateColor.hpp"
 
 #include "../Utils/MacDarkMode.hpp"
 #include <nanosvg/nanosvg.h>
@@ -2646,22 +2647,18 @@ void ImGuiWrapper::pop_common_window_style() {
 }
 
 void ImGuiWrapper::push_confirm_button_style() {
-    if (m_is_dark_mode) {
-        ImGui::PushStyleColor(ImGuiCol_Button,        to_ImVec4(decode_color_to_float_array("#00675b")));
-        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.f / 255.f, 150.f / 255.f, 136.f / 255.f, 1.f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, to_ImVec4(decode_color_to_float_array("#008172")));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive,  to_ImVec4(decode_color_to_float_array("#00675b")));
-        ImGui::PushStyleColor(ImGuiCol_CheckMark, ImVec4(1.f, 1.f, 1.f, 0.88f));
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 0.88f));
-    }
-    else {
-        ImGui::PushStyleColor(ImGuiCol_Button,        to_ImVec4(decode_color_to_float_array("#009688")));
-        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.f / 255.f, 150.f / 255.f, 136.f / 255.f, 1.f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, to_ImVec4(decode_color_to_float_array("#26A69A")));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive,  to_ImVec4(decode_color_to_float_array("#009688")));
-        ImGui::PushStyleColor(ImGuiCol_CheckMark, ImVec4(1.f, 1.f, 1.f, 1.f));
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, 1.f));
-    }
+    const auto to_imgui = [](const wxColour &color) {
+        return ImVec4(color.Red() / 255.f, color.Green() / 255.f, color.Blue() / 255.f, color.Alpha() / 255.f);
+    };
+    const ImVec4 accent = to_imgui(StateColor::AccentColor());
+    const ImVec4 accent_hover = to_imgui(StateColor::AccentHoverColor());
+    ImGui::PushStyleColor(ImGuiCol_Button, accent);
+    ImGui::PushStyleColor(ImGuiCol_Border, accent);
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, accent_hover);
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, accent);
+    const float alpha = m_is_dark_mode ? 0.88f : 1.0f;
+    ImGui::PushStyleColor(ImGuiCol_CheckMark, ImVec4(1.f, 1.f, 1.f, alpha));
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 1.f, 1.f, alpha));
 }
 
 void ImGuiWrapper::pop_confirm_button_style() {
@@ -2742,13 +2739,10 @@ void ImGuiWrapper::pop_combo_style()
 void ImGuiWrapper::push_radio_style(const float scale)
 {
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(1.5f, 1.5f) * scale); // ORCA ensure icon size stays consistent
-    if (m_is_dark_mode) {
-        ImGui::PushStyleColor(ImGuiCol_CheckMark, to_ImVec4(decode_color_to_float_array("#009688"))); // ORCA use orca color for radio buttons
-        ImGui::PushStyleColor(ImGuiCol_Border   , to_ImVec4(decode_color_to_float_array("#949494"))); // ORCA match border color
-    } else {
-        ImGui::PushStyleColor(ImGuiCol_CheckMark, to_ImVec4(decode_color_to_float_array("#009688"))); // ORCA use orca color for radio buttons
-        ImGui::PushStyleColor(ImGuiCol_Border   , to_ImVec4(decode_color_to_float_array("#7C8282"))); // ORCA match border color
-    }
+    const wxColour accent = StateColor::AccentColor();
+    ImGui::PushStyleColor(ImGuiCol_CheckMark,
+        ImVec4(accent.Red() / 255.f, accent.Green() / 255.f, accent.Blue() / 255.f, accent.Alpha() / 255.f));
+    ImGui::PushStyleColor(ImGuiCol_Border, to_ImVec4(decode_color_to_float_array(m_is_dark_mode ? "#949494" : "#7C8282")));
 }
 
 void ImGuiWrapper::pop_radio_style()
