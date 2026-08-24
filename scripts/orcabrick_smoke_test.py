@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import Any
 
 LAYER_HEIGHT_MM = 0.2
-PERIMETER_MOVE_COMMENT = "move to first perimeter point"
 MOTION_RE = re.compile(r"^\s*G(?:0|1|2|3)\b", re.IGNORECASE)
 WORD_RE = re.compile(
     r"(?:^|\s)([XYZE])([-+]?(?:\d+(?:\.\d*)?|\.\d+))",
@@ -157,31 +156,36 @@ def rounded_unique(values: list[float]) -> list[float]:
 
 
 def staggered_events(gcode: str) -> list[dict[str, Any]]:
-    """Find half-layer perimeter starts and prove they extrude an inner wall.
+    """Find real half-layer inner-wall extrusion without relying on comments.
 
-    Orca normally emits the Bricklaying Z change on the travel move to the
-    perimeter.  A later fallback path can emit a dedicated stagger comment,
-    but a correct proof must not depend on that normally unreachable comment.
+    TYPE comments describe the active extrusion role and normally appear before
+    the travel to a perimeter. Every explicit half-layer Z move is followed
+    until the next Z change; it counts only when an XY+E extrusion occurs while
+    the active role is Inner wall.
     """
     lines = gcode.splitlines()
     events: list[dict[str, Any]] = []
+    active_type: str | None = None
+
     for index, raw_line in enumerate(lines):
-        if PERIMETER_MOVE_COMMENT not in raw_line.lower():
-            continue
+        stripped = raw_line.strip()
+        if stripped.lower().startswith(";type:"):
+            active_type = stripped.split(":", 1)[1].strip()
+
         words = motion_words(raw_line)
         z_value = words.get("Z")
         if z_value is None or not is_between_nominal_layers(z_value):
             continue
 
+        extrusion_type = active_type
         extrudes_before_next_z = False
         extrusion_line = None
-        extrusion_type = None
-        active_type = None
         for later_index in range(index + 1, len(lines)):
             later_line = lines[later_index]
-            stripped = later_line.strip()
-            if stripped.lower().startswith(";type:"):
-                active_type = stripped.split(":", 1)[1].strip()
+            later_stripped = later_line.strip()
+            if later_stripped.lower().startswith(";type:"):
+                extrusion_type = later_stripped.split(":", 1)[1].strip()
+
             later_words = motion_words(later_line)
             if not later_words:
                 continue
@@ -194,11 +198,11 @@ def staggered_events(gcode: str) -> list[dict[str, Any]]:
             ):
                 extrudes_before_next_z = True
                 extrusion_line = later_index + 1
-                extrusion_type = active_type
                 break
+
         events.append(
             {
-                "perimeter_move_line": index + 1,
+                "z_move_line": index + 1,
                 "z_mm": z_value,
                 "extrudes_before_next_z": extrudes_before_next_z,
                 "first_extrusion_line": extrusion_line,
@@ -221,8 +225,8 @@ def sha256_text(value: str) -> str:
 def parser_self_test() -> None:
     off = "G1 Z0.2 ; ensure Z matches planned layer height\nG1 X10 Y0 E0.5\n"
     on = (
-        "G1 X0 Y0 Z0.3 ; move to first perimeter point\n"
         ";TYPE:Inner wall\n"
+        "G1 X0 Y0 Z0.3\n"
         "G1 E0.1\n"
         "G1 X10 Y0 E0.5\n"
         "G1 Z0.4\n"
@@ -237,8 +241,8 @@ def parser_self_test() -> None:
     assert not is_between_nominal_layers(0.4)
 
     outer = (
-        "G1 X0 Y0 Z0.3 ; move to first perimeter point\n"
         ";TYPE:Outer wall\n"
+        "G1 X0 Y0 Z0.3\n"
         "G1 X10 Y0 E0.5\n"
     )
     assert len(staggered_events(outer)) == 1
