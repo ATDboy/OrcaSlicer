@@ -575,6 +575,13 @@ static ExtrusionEntityCollection traverse_extrusions(const PerimeterGenerator& p
                     assert(it->polyline.points.size() >= 2);
                     assert(std::prev(it)->polyline.last_point() == it->polyline.first_point());
                 }
+                // Apply Bricklaying metadata before splitting disconnected paths.
+                // Otherwise only the final ExtrusionMultiPath receives the offset.
+                if (perimeter_generator.config->staggered_perimeters && extrusion->inset_idx % 2 == 1) {
+                    for (ExtrusionPath &cur_path : paths)
+                        stagger_path(cur_path);
+                }
+
                 ExtrusionMultiPath multi_path;
                 multi_path.paths.emplace_back(std::move(paths.front()));
 
@@ -584,12 +591,6 @@ static ExtrusionEntityCollection traverse_extrusions(const PerimeterGenerator& p
                         multi_path = ExtrusionMultiPath();
                     }
                     multi_path.paths.emplace_back(std::move(*it_path));
-                }
-
-                // All odd perimeters are staggered up by half the layer height.
-                if (perimeter_generator.config->staggered_perimeters && extrusion->inset_idx % 2 == 1) {
-                    for (ExtrusionPath &cur_path : multi_path.paths)
-                        stagger_path(cur_path);
                 }
 
                 extrusion_coll.append(ExtrusionMultiPath(std::move(multi_path)));
@@ -2352,6 +2353,22 @@ void PerimeterGenerator::process_arachne()
                 available_candidates.push_back(candidate);
             }
 
+            // Prefer nominal-Z walls only among candidates already unlocked by
+            // Arachne's dependency graph. This keeps Bricklaying's safer wall
+            // order without invalidating the topological constraints.
+            if (this->config->staggered_perimeters) {
+                const bool nominal_wall_available = std::any_of(
+                    available_candidates.begin(), available_candidates.end(),
+                    [&all_extrusions](const size_t idx) {
+                        return all_extrusions[idx]->inset_idx % 2 == 0;
+                    });
+                if (nominal_wall_available) {
+                    std::erase_if(available_candidates, [&all_extrusions](const size_t idx) {
+                        return all_extrusions[idx]->inset_idx % 2 == 1;
+                    });
+                }
+            }
+
             std::sort(available_candidates.begin(), available_candidates.end(), [&all_extrusions](const size_t a_idx, const size_t b_idx) -> bool {
                 return all_extrusions[a_idx]->is_closed < all_extrusions[b_idx]->is_closed;
                 });
@@ -2390,15 +2407,6 @@ void PerimeterGenerator::process_arachne()
                 else
                     current_position = best_path->junctions.back().p; //Pick the other end from where we started.
             }
-        }
-
-        // Print nominal-Z walls before the raised walls while preserving the
-        // path planner's order inside each group.
-        if (this->config->staggered_perimeters) {
-            std::stable_sort(ordered_extrusions.begin(), ordered_extrusions.end(),
-                [](const PerimeterGeneratorArachneExtrusion &lhs, const PerimeterGeneratorArachneExtrusion &rhs) {
-                    return lhs.extrusion->inset_idx % 2 < rhs.extrusion->inset_idx % 2;
-                });
         }
 
        // printf("New Layer: Layer ID %d\n",layer_id); //debug - new layer
