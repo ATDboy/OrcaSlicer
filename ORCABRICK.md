@@ -49,7 +49,7 @@ OrcaBrick. Some specialized icons and views use their own semantic colors and
 are intentionally not recolored.
 
 The visible program name is **OrcaBrick**, and the visible version is
-**2.4.2 — build 3**. The internal application key remains OrcaSlicer so existing
+**2.4.2 - build 3**. The internal application key remains OrcaSlicer so existing
 printer, filament, and process profiles stay compatible. The technical build
 version is `2.4.2+OrcaBrick3` and is not used as the normal display name.
 

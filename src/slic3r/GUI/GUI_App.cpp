@@ -6022,7 +6022,17 @@ std::string GUI_App::format_display_version()
 {
     if (!version_display.empty()) return version_display;
 
-    version_display = "2.4.2 — build 3";
+    const std::string technical_version = SoftFever_VERSION;
+    const std::string marker = "+OrcaBrick";
+    const size_t marker_pos = technical_version.find(marker);
+    if (marker_pos == std::string::npos) {
+        version_display = technical_version;
+    } else {
+        const std::string build = technical_version.substr(marker_pos + marker.size());
+        version_display = technical_version.substr(0, marker_pos);
+        if (!build.empty())
+            version_display += " - build " + build;
+    }
     return version_display;
 }
 
