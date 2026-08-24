@@ -3319,6 +3319,13 @@ void GCodeProcessor::process_tags(const std::string_view comment, bool producers
         return;
     }
 
+    // Preview-only Bricklaying half layer. This is intentionally separate from
+    // the standard layer tag: it changes visualization grouping, not print logic.
+    if (comment == "ORCABRICK_LAYER_CHANGE") {
+        ++m_layer_id;
+        return;
+    }
+
     // layer change tag
     if (comment == reserved_tag(ETags::Layer_Change)) {
         ++m_layer_id;

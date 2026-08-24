@@ -7,9 +7,9 @@ set(SLIC3R_APP_KEY "OrcaSlicer")
 if(NOT DEFINED BBL_INTERNAL_TESTING)
 set(BBL_INTERNAL_TESTING "0")
 endif()
-set(ORCABRICK_BUILD "4")
+set(ORCABRICK_BUILD "5")
 # Keep this literal: GitHub Actions reads it as text and does not evaluate CMake.
-set(SoftFever_VERSION "2.4.2+OrcaBrick4")
+set(SoftFever_VERSION "2.4.2+OrcaBrick5")
 string(REGEX MATCH "^([0-9]+)\\.([0-9]+)\\.([0-9]+)"
        SoftFever_VERSION_MATCH ${SoftFever_VERSION})
 set(ORCA_VERSION_MAJOR ${CMAKE_MATCH_1})

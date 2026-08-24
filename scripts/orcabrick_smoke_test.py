@@ -395,6 +395,9 @@ def run_proof(executable: Path, repository: Path, workdir: Path) -> int:
 
     off_events = staggered_events(gcode_off)
     on_events = staggered_events(gcode_on)
+    preview_marker = ";ORCABRICK_LAYER_CHANGE"
+    off_preview_markers = gcode_off.count(preview_marker)
+    on_preview_markers = gcode_on.count(preview_marker)
     event_z_values = [
         float(event["z_mm"]) for event in on_events if event["z_mm"] is not None
     ]
@@ -407,6 +410,14 @@ def run_proof(executable: Path, repository: Path, workdir: Path) -> int:
     errors: list[str] = []
     if gcode_on == gcode_off:
         errors.append("Bricklaying ON and OFF produced identical G-code")
+    if off_preview_markers:
+        errors.append(
+            f"Bricklaying OFF unexpectedly contains {off_preview_markers} preview half-layer markers"
+        )
+    if on_preview_markers < 3:
+        errors.append(
+            f"Bricklaying ON contains only {on_preview_markers} preview half-layer markers; expected at least 3"
+        )
     if off_events:
         errors.append(
             f"Bricklaying OFF unexpectedly contains {len(off_events)} half-layer perimeter moves"
@@ -439,6 +450,8 @@ def run_proof(executable: Path, repository: Path, workdir: Path) -> int:
         "on_sha256": sha256_text(gcode_on),
         "off_explicit_z_count": len(motion_z_values(gcode_off)),
         "on_explicit_z_count": len(motion_z_values(gcode_on)),
+        "off_preview_half_layer_marker_count": off_preview_markers,
+        "on_preview_half_layer_marker_count": on_preview_markers,
         "off_half_layer_perimeter_count": len(off_events),
         "on_half_layer_perimeter_count": len(on_events),
         "extruding_inner_wall_half_layer_count": sum(
