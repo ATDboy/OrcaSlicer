@@ -6682,7 +6682,7 @@ void PrintConfigDef::init_fff_params()
     def = this->add("staggered_perimeters", coBool);
     def->label = L("Bricklaying (staggered walls)");
     def->category = L("Strength");
-    def->tooltip = L("Experimental: raises alternating inner walls by half a layer to improve layer adhesion and wall strength. Use a fixed layer height, at least 3 walls, and inspect every sliced layer in Preview before printing.");
+    def->tooltip = L("Experimental: raises alternating inner walls by half a layer to improve layer adhesion and wall strength. Use a fixed layer height and at least 3 walls. Only one wall on first layer and Alternate extra wall are incompatible. Bricklaying controls wall order to reduce collision risk. Inspect every sliced layer in Preview before printing.");
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 

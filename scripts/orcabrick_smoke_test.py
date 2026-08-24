@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Prove that OrcaBrick changes sliced G-code when Bricklaying is enabled."""
+"""Prove that OrcaBrick creates real staggered, extruding wall paths."""
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import subprocess
@@ -11,6 +12,14 @@ import sys
 import zipfile
 from pathlib import Path
 from typing import Any
+
+LAYER_HEIGHT_MM = 0.2
+STAGGER_MARKER = "set z for staggered perimeter"
+MOTION_RE = re.compile(r"^\s*G(?:0|1|2|3)\b", re.IGNORECASE)
+WORD_RE = re.compile(
+    r"(?:^|\s)([XYZE])([-+]?(?:\d+(?:\.\d*)?|\.\d+))",
+    re.IGNORECASE,
+)
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -96,10 +105,16 @@ def run_slice(
         errors="replace",
         timeout=600,
     )
+    (output_directory / "slice-stdout.txt").write_text(
+        completed.stdout, encoding="utf-8", errors="replace"
+    )
+    (output_directory / "slice-stderr.txt").write_text(
+        completed.stderr, encoding="utf-8", errors="replace"
+    )
     if completed.returncode != 0:
         raise RuntimeError(
             "OrcaBrick CLI slicing failed with exit code "
-            f"{completed.returncode}\nSTDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}"
+            f"{completed.returncode}; see saved stdout/stderr"
         )
 
     raw_gcode = sorted(output_directory.rglob("*.gcode"))
@@ -111,7 +126,9 @@ def run_slice(
         if not zipfile.is_zipfile(archive):
             continue
         with zipfile.ZipFile(archive) as package:
-            names = [name for name in package.namelist() if name.lower().endswith(".gcode")]
+            names = [
+                name for name in package.namelist() if name.lower().endswith(".gcode")
+            ]
             if names:
                 return package.read(names[0]).decode("utf-8", errors="replace")
 
@@ -120,37 +137,95 @@ def run_slice(
     )
 
 
+def motion_words(raw_line: str) -> dict[str, float]:
+    command = raw_line.split(";", 1)[0]
+    if not MOTION_RE.search(command):
+        return {}
+    return {axis.upper(): float(value) for axis, value in WORD_RE.findall(command)}
+
+
 def motion_z_values(gcode: str) -> list[float]:
-    """Return explicit Z words from motion commands, independent of comments."""
-    values: list[float] = []
-    motion = re.compile(r"^\s*G(?:0|1|2|3)\b", re.IGNORECASE)
-    z_word = re.compile(r"(?:^|\s)Z([-+]?(?:\d+(?:\.\d*)?|\.\d+))", re.IGNORECASE)
-    for raw_line in gcode.splitlines():
-        command = raw_line.split(";", 1)[0]
-        if not motion.search(command):
-            continue
-        match = z_word.search(command)
-        if match:
-            values.append(float(match.group(1)))
-    return values
+    return [
+        words["Z"]
+        for raw_line in gcode.splitlines()
+        if (words := motion_words(raw_line)) and "Z" in words
+    ]
 
 
 def rounded_unique(values: list[float]) -> list[float]:
     return sorted({round(value, 5) for value in values})
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--exe", required=True, type=Path)
-    parser.add_argument("--repo", required=True, type=Path)
-    parser.add_argument("--workdir", required=True, type=Path)
-    args = parser.parse_args()
 
-    executable = args.exe.resolve()
-    repository = args.repo.resolve()
-    workdir = args.workdir.resolve()
+def staggered_events(gcode: str) -> list[dict[str, Any]]:
+    """Find each explicit Bricklaying Z move and prove extrusion follows it."""
+    lines = gcode.splitlines()
+    events: list[dict[str, Any]] = []
+    for index, raw_line in enumerate(lines):
+        if STAGGER_MARKER not in raw_line.lower():
+            continue
+        words = motion_words(raw_line)
+        z_value = words.get("Z")
+        extrudes_before_next_z = False
+        extrusion_line = None
+        for later_index in range(index + 1, len(lines)):
+            later_line = lines[later_index]
+            if STAGGER_MARKER in later_line.lower():
+                break
+            later_words = motion_words(later_line)
+            if not later_words:
+                continue
+            if "Z" in later_words:
+                break
+            if (
+                ("X" in later_words or "Y" in later_words)
+                and "E" in later_words
+                and later_words["E"] > 0
+            ):
+                extrudes_before_next_z = True
+                extrusion_line = later_index + 1
+                break
+        events.append(
+            {
+                "marker_line": index + 1,
+                "z_mm": z_value,
+                "extrudes_before_next_z": extrudes_before_next_z,
+                "first_extrusion_line": extrusion_line,
+            }
+        )
+    return events
+
+
+def is_between_nominal_layers(value: float) -> bool:
+    scaled = value / LAYER_HEIGHT_MM
+    return abs(scaled - round(scaled)) > 0.25
+
+
+def sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8", errors="replace")).hexdigest()
+
+
+def parser_self_test() -> None:
+    off = "G1 Z0.2 ; ensure Z matches planned layer height\nG1 X10 Y0 E0.5\n"
+    on = (
+        "G1 Z0.3 ; set Z for staggered perimeter\n"
+        "G1 E0.1\n"
+        "G1 X10 Y0 E0.5\n"
+        "G1 Z0.4\n"
+    )
+    assert staggered_events(off) == []
+    events = staggered_events(on)
+    assert len(events) == 1
+    assert events[0]["z_mm"] == 0.3
+    assert events[0]["extrudes_before_next_z"]
+    assert is_between_nominal_layers(0.3)
+    assert not is_between_nominal_layers(0.4)
+
+
+def run_proof(executable: Path, repository: Path, workdir: Path) -> int:
     if not executable.is_file():
         raise RuntimeError(f"OrcaBrick executable not found: {executable}")
 
+    workdir.mkdir(parents=True, exist_ok=True)
     vendor = repository / "resources" / "profiles" / "SecKit"
     machine = resolve_profile(vendor / "machine" / "SecKit Go3 0.4 nozzle.json")
     process = resolve_profile(vendor / "process" / "0.20mm Standard @SecKit.json")
@@ -164,16 +239,19 @@ def main() -> int:
             "wall_loops": "3",
             "spiral_mode": "0",
             "alternate_extra_wall": "0",
-            # The proof also validates the Bricklaying-specific Z marker, so
-            # force explanatory comments on instead of relying on a profile default.
+            "only_one_wall_first_layer": "0",
             "gcode_comments": "1",
             "staggered_perimeter_flow_ratio": "1",
         }
     )
     process_off = dict(process)
-    process_off.update({"name": "OrcaBrick smoke test OFF", "staggered_perimeters": "0"})
+    process_off.update(
+        {"name": "OrcaBrick proof OFF", "staggered_perimeters": "0"}
+    )
     process_on = dict(process)
-    process_on.update({"name": "OrcaBrick smoke test ON", "staggered_perimeters": "1"})
+    process_on.update(
+        {"name": "OrcaBrick proof ON", "staggered_perimeters": "1"}
+    )
 
     profiles = workdir / "profiles"
     profiles.mkdir(parents=True, exist_ok=True)
@@ -203,51 +281,110 @@ def main() -> int:
         filament_path,
         workdir / "on",
     )
+    (workdir / "brick-off.gcode").write_text(
+        gcode_off, encoding="utf-8", errors="replace"
+    )
+    (workdir / "brick-on.gcode").write_text(
+        gcode_on, encoding="utf-8", errors="replace"
+    )
 
-    off_values = motion_z_values(gcode_off)
-    on_values = motion_z_values(gcode_on)
-    off_unique = rounded_unique(off_values)
-    on_unique = rounded_unique(on_values)
+    off_events = staggered_events(gcode_off)
+    on_events = staggered_events(gcode_on)
+    marker_z_values = [
+        float(event["z_mm"]) for event in on_events if event["z_mm"] is not None
+    ]
+    half_layer_marker_values = rounded_unique(
+        [value for value in marker_z_values if is_between_nominal_layers(value)]
+    )
+    non_extruding_events = [
+        event for event in on_events if not event["extrudes_before_next_z"]
+    ]
+    missing_z_events = [event for event in on_events if event["z_mm"] is None]
 
+    errors: list[str] = []
     if gcode_on == gcode_off:
-        raise RuntimeError("Bricklaying ON and OFF produced identical G-code")
-
-    tolerance = 1e-4
-    on_only_values = [
-        value
-        for value in on_unique
-        if not any(abs(value - off_value) <= tolerance for off_value in off_unique)
-    ]
-    half_layer_values = [
-        value
-        for value in on_only_values
-        if abs((value / 0.2) - round(value / 0.2)) > 0.1
-    ]
-    if not half_layer_values:
-        raise RuntimeError(
-            "Bricklaying ON produced no exclusive between-layer Z positions. "
-            f"OFF Z sample={off_unique[:30]}; ON Z sample={on_unique[:30]}"
+        errors.append("Bricklaying ON and OFF produced identical G-code")
+    if off_events:
+        errors.append(
+            f"Bricklaying OFF unexpectedly contains {len(off_events)} stagger markers"
+        )
+    if len(on_events) < 5:
+        errors.append(
+            f"Bricklaying ON contains only {len(on_events)} stagger markers; expected at least 5"
+        )
+    if missing_z_events:
+        errors.append(
+            f"{len(missing_z_events)} stagger markers do not contain an explicit Z word"
+        )
+    if non_extruding_events:
+        errors.append(
+            f"{len(non_extruding_events)} stagger markers are not followed by XY+E extrusion before the next Z move"
+        )
+    if len(half_layer_marker_values) < 3:
+        errors.append(
+            "Bricklaying ON does not contain at least three distinct between-layer marker heights"
         )
 
     summary = {
-        "result": "PASS",
-        "on_only_z_count": len(on_only_values),
-        "first_on_only_z_values_mm": on_only_values[:10],
-        "half_layer_z_count": len(half_layer_values),
-        "first_half_layer_z_values_mm": half_layer_values[:10],
+        "result": "FAIL" if errors else "PASS",
+        "errors": errors,
         "model": model.name,
-        "layer_height_mm": 0.2,
+        "layer_height_mm": LAYER_HEIGHT_MM,
         "wall_loops": 3,
+        "flow_ratio": 1.0,
+        "off_sha256": sha256_text(gcode_off),
+        "on_sha256": sha256_text(gcode_on),
+        "off_explicit_z_count": len(motion_z_values(gcode_off)),
+        "on_explicit_z_count": len(motion_z_values(gcode_on)),
+        "off_stagger_marker_count": len(off_events),
+        "on_stagger_marker_count": len(on_events),
+        "extruding_stagger_marker_count": len(on_events) - len(non_extruding_events),
+        "distinct_half_layer_marker_z_mm": half_layer_marker_values,
+        "first_stagger_events": on_events[:10],
     }
-    summary_path = workdir / "orcabrick-smoke-test.json"
+    summary_path = workdir / "orcabrick-gcode-proof.json"
     summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(summary, indent=2))
+
+    if errors:
+        raise RuntimeError("; ".join(errors))
     return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--self-test", action="store_true")
+    parser.add_argument("--exe", type=Path)
+    parser.add_argument("--repo", type=Path)
+    parser.add_argument("--workdir", type=Path)
+    args = parser.parse_args()
+
+    if args.self_test:
+        parser_self_test()
+        print("OrcaBrick proof parser self-test: PASS")
+        return 0
+
+    if args.exe is None or args.repo is None or args.workdir is None:
+        parser.error("--exe, --repo and --workdir are required unless --self-test is used")
+
+    workdir = args.workdir.resolve()
+    try:
+        return run_proof(
+            args.exe.resolve(),
+            args.repo.resolve(),
+            workdir,
+        )
+    except Exception as error:
+        workdir.mkdir(parents=True, exist_ok=True)
+        (workdir / "orcabrick-gcode-proof-error.txt").write_text(
+            f"{type(error).__name__}: {error}\n", encoding="utf-8"
+        )
+        raise
 
 
 if __name__ == "__main__":
     try:
         sys.exit(main())
     except Exception as error:
-        print(f"ORCABRICK SMOKE TEST FAILED: {error}", file=sys.stderr)
+        print(f"ORCABRICK G-CODE PROOF FAILED: {error}", file=sys.stderr)
         sys.exit(1)

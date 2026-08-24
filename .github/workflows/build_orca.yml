@@ -341,7 +341,7 @@ jobs:
         shell: pwsh
 
       - name: Prove Bricklaying changes sliced G-code
-        if: runner.os == 'Windows' && inputs.arch == 'x64' && !vars.SELF_HOSTED
+        if: runner.os == 'Windows' && inputs.arch == 'x64'
         working-directory: ${{ github.workspace }}
         shell: pwsh
         run: |
@@ -353,6 +353,15 @@ jobs:
             --exe $exe `
             --repo "${{ github.workspace }}" `
             --workdir "${{ runner.temp }}/orcabrick-smoke-test"
+
+      - name: Upload Bricklaying G-code proof
+        if: always() && runner.os == 'Windows' && inputs.arch == 'x64'
+        uses: actions/upload-artifact@v7
+        with:
+          name: OrcaBrick_GCode_Proof_${{ env.ver }}${{ env.ARCH_SUFFIX }}
+          path: ${{ runner.temp }}/orcabrick-smoke-test
+          if-no-files-found: warn
+          retention-days: 14
 
       # NSIS is x86-only; it runs (and the installer it emits runs) under ARM64's
       # x86 emulation, packaging the native arm64 payload from build-arm64.
@@ -385,9 +394,9 @@ jobs:
         if: runner.os == 'Windows' && !vars.SELF_HOSTED
         uses: actions/upload-artifact@v7
         with:
-          name: OrcaSlicer_Windows_${{ env.ver }}${{ env.ARCH_SUFFIX }}
-          # OrcaBrick uses a friendlier installer filename than upstream OrcaSlicer.
-          path: ${{ github.workspace }}/${{ env.BUILD_DIR }}/Orca*.exe
+          name: OrcaBrick_Windows_Setup_${{ env.ver }}${{ env.ARCH_SUFFIX }}
+          path: ${{ github.workspace }}/${{ env.BUILD_DIR }}/OrcaBrick_Setup_*${{ env.ARCH_SUFFIX }}.exe
+          if-no-files-found: error
 
       - name: Upload artifacts Win PDB
         if: runner.os == 'Windows' && inputs.arch != 'arm64' && !vars.SELF_HOSTED

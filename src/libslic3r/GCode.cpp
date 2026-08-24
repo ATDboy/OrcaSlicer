@@ -6384,10 +6384,11 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
 
         gcode += this->travel_to(first_point, path.role(), "move to first " + description + " point", z);
 
-        // Orca: ensure Z matches planned path Z
+        // Preserve upstream output when no path-specific Z offset is active.
         if (!slope_need_z_travel && (_last_pos_undefined || m_need_change_layer_lift_z)) {
             const std::string z_sync_comment = _last_pos_undefined ?
-                "ensure Z matches planned path Z" : ""; // no comment for normal layer-Z lift
+                (should_apply_staggered_offset ? "ensure Z matches staggered path Z" : "ensure Z matches planned layer height") :
+                ""; // no comment for normal layer-Z lift
             gcode += this->writer().travel_to_z(target_z, z_sync_comment, true);
         }
         m_need_change_layer_lift_z = false;
@@ -6404,7 +6405,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
         double current_z = m_writer.get_position().z();
         if (GCodeFormatter::quantize_xyzf(current_z) != GCodeFormatter::quantize_xyzf(target_z)) {
             gcode += this->writer().travel_to_z(target_z,
-                should_apply_staggered_offset ? "set Z for staggered perimeter" : "reset Z after path-specific offset", true);
+                should_apply_staggered_offset ? "set Z for staggered perimeter" : "reset Z after contouring", true);
         }
     }
 

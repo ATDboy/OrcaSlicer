@@ -9,6 +9,8 @@ on:
       - 'tests/**'
       - 'scripts/orcabrick_smoke_test.py'
       - 'version.inc'
+      - 'CMakeLists.txt'
+      - 'resources/profiles/SecKit/**'
       - '.github/workflows/orcabrick_windows.yml'
       - '.github/workflows/build_orca.yml'
   workflow_dispatch:
@@ -21,8 +23,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  validate_orcabrick:
+    name: Validate OrcaBrick source and proof parser
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+      - name: Validate proof script and changed lines
+        shell: bash
+        run: |
+          python -m py_compile scripts/orcabrick_smoke_test.py
+          python scripts/orcabrick_smoke_test.py --self-test
+          git diff --check HEAD^ HEAD
+
   build_windows_x64:
     name: Build Windows x64 installer
+    needs: validate_orcabrick
     uses: ./.github/workflows/build_check_cache.yml
     with:
       os: windows-latest

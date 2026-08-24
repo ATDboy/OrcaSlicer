@@ -6022,7 +6022,7 @@ std::string GUI_App::format_display_version()
 {
     if (!version_display.empty()) return version_display;
 
-    version_display = "2.4.2 (OrcaBrick build 2)";
+    version_display = "2.4.2 — build 3";
     return version_display;
 }
 

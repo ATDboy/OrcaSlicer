@@ -389,6 +389,7 @@ void ConfigManipulation::update_print_fff_config(DynamicPrintConfig* config, con
             !have_arachne ||
             config->opt_bool("spiral_mode") ||
             config->opt_bool("alternate_extra_wall") ||
+            config->opt_bool("only_one_wall_first_layer") ||
             config->opt_int("wall_loops") < 3))
     {
         DynamicPrintConfig new_conf = *config;
@@ -399,6 +400,7 @@ void ConfigManipulation::update_print_fff_config(DynamicPrintConfig* config, con
             new_conf.set_key_value("wall_generator", new ConfigOptionEnum<PerimeterGeneratorType>(PerimeterGeneratorType::Arachne));
             new_conf.set_key_value("spiral_mode", new ConfigOptionBool(false));
             new_conf.set_key_value("alternate_extra_wall", new ConfigOptionBool(false));
+            new_conf.set_key_value("only_one_wall_first_layer", new ConfigOptionBool(false));
             new_conf.set_key_value("wall_loops", new ConfigOptionInt(std::max(3, config->opt_int("wall_loops"))));
         }
         else {
@@ -1144,8 +1146,8 @@ int ConfigManipulation::show_spiral_mode_settings_dialog(bool is_object_config)
 
 int ConfigManipulation::show_staggered_perimeter_settings_dialog()
 {
-    wxString msg_text = _(L("Bricklaying is experimental and cannot be guaranteed for every model. It requires at least 3 walls, matching first/normal layer heights, matching top/outer wall widths, the Arachne wall generator, Spiral vase off, and Alternate extra wall off."));
-    msg_text += "\n\n" + _(L("Use a fixed layer height. Sloped top surfaces, overhangs, support contact areas and internal holes need careful Preview inspection before printing."));
+    wxString msg_text = _(L("Bricklaying is experimental and cannot be guaranteed for every model. It requires at least 3 walls, matching first/normal layer heights, matching top/outer wall widths, the Arachne wall generator, Spiral vase off, Alternate extra wall off, and Only one wall on first layer off."));
+    msg_text += "\n\n" + _(L("Use a fixed layer height. Bricklaying controls wall order to reduce collision risk. Sloped top surfaces, overhangs, support contact areas and internal holes need careful Preview inspection before printing."));
     msg_text += "\n\n" + _(L("Change these settings automatically?\n"
                                "Yes - Change the settings and enable Bricklaying\n"
                                "No - Leave Bricklaying disabled"));

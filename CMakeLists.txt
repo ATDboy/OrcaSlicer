@@ -933,7 +933,7 @@ set (CPACK_PACKAGE_VENDOR "SoftFever")
 set (CPACK_PACKAGE_VERSION_MAJOR "${ORCA_VERSION_MAJOR}")
 set (CPACK_PACKAGE_VERSION_MINOR "${ORCA_VERSION_MINOR}")
 set (CPACK_PACKAGE_VERSION_PATCH "${ORCA_VERSION_PATCH}")
-set (CPACK_PACKAGE_FILE_NAME "OrcaBrick_Setup_2.4.2_build_2")
+set (CPACK_PACKAGE_FILE_NAME "OrcaBrick_Setup_${ORCA_VERSION_MAJOR}.${ORCA_VERSION_MINOR}.${ORCA_VERSION_PATCH}_build_${ORCABRICK_BUILD}")
 # Suffix the Windows installer with its target arch so the x64 and arm64 builds
 # produce distinct filenames (matches ARCH_SUFFIX in build_orca.yml). Same
 # CMAKE_SYSTEM_PROCESSOR mapping used by orcaslicer_copy_dlls() above.
