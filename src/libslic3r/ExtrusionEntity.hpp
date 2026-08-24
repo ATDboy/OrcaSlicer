@@ -168,6 +168,9 @@ public:
     // Bricklaying metadata. The Z offset is expressed as a fraction of the
     // current path height; extrusion_multiplier scales the path flow.
     float z_offset = 0.0f;
+    // Bricklaying offset is separate from z_offset, which is also used by
+    // sloped/scarf paths. Mixing them corrupts sloped geometry.
+    float staggered_z_offset = 0.0f;
     float extrusion_multiplier = 1.0f;
 
     ExtrusionPath() : mm3_per_mm(-1), width(-1), height(-1), m_role(erNone), m_no_extrusion(false) {}
@@ -185,6 +188,7 @@ public:
         , smooth_speed(rhs.smooth_speed)
         , z_contoured(rhs.z_contoured)
         , z_offset(rhs.z_offset)
+        , staggered_z_offset(rhs.staggered_z_offset)
         , extrusion_multiplier(rhs.extrusion_multiplier)
         , m_can_reverse(rhs.m_can_reverse)
         , m_role(rhs.m_role)
@@ -200,6 +204,7 @@ public:
         , smooth_speed(rhs.smooth_speed)
         , z_contoured(rhs.z_contoured)
         , z_offset(rhs.z_offset)
+        , staggered_z_offset(rhs.staggered_z_offset)
         , extrusion_multiplier(rhs.extrusion_multiplier)
         , m_can_reverse(rhs.m_can_reverse)
         , m_role(rhs.m_role)
@@ -215,6 +220,7 @@ public:
         , smooth_speed(rhs.smooth_speed)
         , z_contoured(rhs.z_contoured)
         , z_offset(rhs.z_offset)
+        , staggered_z_offset(rhs.staggered_z_offset)
         , extrusion_multiplier(rhs.extrusion_multiplier)
         , m_can_reverse(rhs.m_can_reverse)
         , m_role(rhs.m_role)
@@ -230,6 +236,7 @@ public:
         , smooth_speed(rhs.smooth_speed)
         , z_contoured(rhs.z_contoured)
         , z_offset(rhs.z_offset)
+        , staggered_z_offset(rhs.staggered_z_offset)
         , extrusion_multiplier(rhs.extrusion_multiplier)
         , m_can_reverse(rhs.m_can_reverse)
         , m_role(rhs.m_role)
@@ -249,6 +256,7 @@ public:
         this->curve_degree = rhs.curve_degree;
         this->polyline = rhs.polyline;
         this->z_offset = rhs.z_offset;
+        this->staggered_z_offset = rhs.staggered_z_offset;
         this->extrusion_multiplier = rhs.extrusion_multiplier;
         return *this;
     }
@@ -265,6 +273,7 @@ public:
         this->curve_degree = rhs.curve_degree;
         this->polyline = std::move(rhs.polyline);
         this->z_offset = rhs.z_offset;
+        this->staggered_z_offset = rhs.staggered_z_offset;
         this->extrusion_multiplier = rhs.extrusion_multiplier;
         return *this;
     }

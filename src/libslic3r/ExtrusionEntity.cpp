@@ -288,6 +288,7 @@ void ExtrusionLoop::split_at(const Point &point, bool prefer_non_overhang, const
     ExtrusionPath p2(path.role(), path.mm3_per_mm, path.width, path.height);
     p1.z_contoured = p2.z_contoured = path.z_contoured;
     p1.z_offset = p2.z_offset = path.z_offset;
+    p1.staggered_z_offset = p2.staggered_z_offset = path.staggered_z_offset;
     p1.extrusion_multiplier = p2.extrusion_multiplier = path.extrusion_multiplier;
     path.polyline.split_at(p, &p1.polyline, &p2.polyline);
 

@@ -536,7 +536,7 @@ static ExtrusionEntityCollection traverse_extrusions(const PerimeterGenerator& p
             // Match Nanashi's wall stack: stagger all odd walls except the
             // penultimate object layer, which closes the stack at half flow.
             if (layer_id != perimeter_generator.number_of_layers - 2) {
-                cur_path.z_offset = 0.5;
+                cur_path.staggered_z_offset = 0.5;
             }
         };
 

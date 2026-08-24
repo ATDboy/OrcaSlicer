@@ -6351,24 +6351,29 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
         description += " (bridge)";
 
     const ExtrusionPathSloped* sloped = dynamic_cast<const ExtrusionPathSloped*>(&path);
+    const bool has_staggered_offset = !is_approx(path.staggered_z_offset, 0.0f);
     const bool should_apply_staggered_offset =
-        sloped == nullptr && !path.z_contoured && !is_approx(path.z_offset, 0.0f);
-    // path.z_offset is expressed in layer-height units.
+        sloped == nullptr && !path.z_contoured && has_staggered_offset;
+    // staggered_z_offset is expressed in layer-height units and is deliberately
+    // independent from the z_offset used by sloped/scarf paths.
+    const double staggered_z = path.staggered_z_offset * path.height;
     const double target_z = should_apply_staggered_offset ?
-        m_nominal_z + path.z_offset * path.height : m_nominal_z;
+        m_nominal_z + staggered_z : m_nominal_z;
 
     // The viewer normally groups moves only by ;LAYER_CHANGE. Mark the first
     // half-layer wall so Bricklaying heights appear in Preview without changing
     // any printer command or the slicer's nominal layer bookkeeping.
-    if (should_apply_staggered_offset && !m_orcabrick_preview_layer_marked) {
+    if (has_staggered_offset && !m_orcabrick_preview_layer_marked) {
         gcode += ";ORCABRICK_LAYER_CHANGE\n";
         m_orcabrick_preview_layer_marked = true;
     }
 
-    const auto get_sloped_z = [&sloped, this](double z_ratio) {
+    const auto get_sloped_z = [&sloped, &path, this](double z_ratio) {
         const auto height = sloped->height;
         const auto z_offset = sloped->z_offset;
-        return lerp(m_nominal_z + z_offset * height - height, m_nominal_z + z_offset * height, z_ratio);
+        return lerp(m_nominal_z + z_offset * height - height,
+                    m_nominal_z + z_offset * height,
+                    z_ratio) + path.staggered_z_offset * height;
     };
 
     bool slope_need_z_travel = false;
@@ -6525,7 +6530,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
         }
     }
 
-    if (path.role() == erPerimeter && should_apply_staggered_offset) {
+    if (path.role() == erPerimeter && has_staggered_offset) {
         _mm3_per_mm *= m_config.staggered_perimeter_flow_ratio;
     }
 
