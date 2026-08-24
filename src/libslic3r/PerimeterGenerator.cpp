@@ -2363,9 +2363,13 @@ void PerimeterGenerator::process_arachne()
                         return all_extrusions[idx]->inset_idx % 2 == 0;
                     });
                 if (nominal_wall_available) {
-                    std::erase_if(available_candidates, [&all_extrusions](const size_t idx) {
-                        return all_extrusions[idx]->inset_idx % 2 == 1;
-                    });
+                    available_candidates.erase(
+                        std::remove_if(
+                            available_candidates.begin(), available_candidates.end(),
+                            [&all_extrusions](const size_t idx) {
+                                return all_extrusions[idx]->inset_idx % 2 == 1;
+                            }),
+                        available_candidates.end());
                 }
             }
 
