@@ -2682,6 +2682,117 @@ void GCodeProcessor::process_buffer(const std::string &buffer)
     });
 }
 
+// OrcaBrick: Bricklaying prints alternating inner walls half a layer high, so one print layer can
+// hold extrusions at two different Z. libvgcode groups vertices into preview layers by runs of
+// equal layer_id, stores a single Z per layer (that of its last extrusion) and binary searches
+// those Zs in Layers::get_layer_id_at(), so extra preview layers are only sound while the Z
+// sequence stays monotonic. Split a print layer in two only when the raised extrusions form a
+// contiguous tail after at least one nominal extrusion, and commit the renumbering only once the
+// resulting Z sequence has been verified. Everything else keeps the layer whole.
+//
+// The two earlier marker-driven attempts split unconditionally. Interleaved walls then produced
+// non-monotonic Zs, which is what made the model render black or vanish.
+//
+// The nominal height is taken as the lowest extrusion in the layer rather than from print_z,
+// because the "; Z_HEIGHT:" comment print_z is parsed from is only emitted for BBL printers.
+void GCodeProcessor::split_staggered_preview_layers()
+{
+    static constexpr float STAGGER_EPSILON = 0.0001f;
+
+    if (m_result.moves.empty())
+        return;
+
+    // Mirrors the vertices libvgcode's Layers::update() takes a layer's Z from.
+    const auto is_layer_z_source = [](const GCodeProcessorResult::MoveVertex &move) {
+        return move.type == EMoveType::Extrude && move.extrusion_role != erCustom;
+    };
+
+    struct PreviewLayer { float z{ 0.0f }; bool has_z{ false }; };
+
+    std::vector<unsigned int> new_layer_ids(m_result.moves.size(), 0);
+    std::vector<PreviewLayer> preview_layers;
+    unsigned int              next_layer_id = 0;
+    bool                      split_any     = false;
+
+    for (size_t begin = 0; begin < m_result.moves.size();) {
+        const unsigned int print_layer_id = m_result.moves[begin].layer_id;
+        size_t             end            = begin;
+        while (end < m_result.moves.size() && m_result.moves[end].layer_id == print_layer_id)
+            ++end;
+
+        float nominal_z     = 0.0f;
+        bool  has_nominal_z = false;
+        for (size_t i = begin; i < end; ++i) {
+            if (!is_layer_z_source(m_result.moves[i]))
+                continue;
+            const float z = m_result.moves[i].position.z();
+            if (!has_nominal_z || z < nominal_z) {
+                nominal_z     = z;
+                has_nominal_z = true;
+            }
+        }
+
+        // Locate the first raised extrusion and check that no nominal one follows it.
+        size_t split          = end;
+        bool   tail_is_raised = true;
+        bool   has_nominal    = false;
+        for (size_t i = begin; i < end; ++i) {
+            if (!is_layer_z_source(m_result.moves[i]))
+                continue;
+            if (m_result.moves[i].position.z() > nominal_z + STAGGER_EPSILON) {
+                if (split == end)
+                    split = i;
+            }
+            else if (split == end)
+                has_nominal = true;
+            else
+                tail_is_raised = false;
+        }
+
+        // Record each group's Z the way libvgcode derives it: from its last extrusion.
+        const auto close_group = [&](size_t from, size_t to) {
+            PreviewLayer layer;
+            for (size_t i = from; i < to; ++i)
+                if (is_layer_z_source(m_result.moves[i])) {
+                    layer.z     = m_result.moves[i].position.z();
+                    layer.has_z = true;
+                }
+            for (size_t i = from; i < to; ++i)
+                new_layer_ids[i] = next_layer_id;
+            preview_layers.emplace_back(layer);
+            ++next_layer_id;
+        };
+
+        if (split < end && has_nominal && tail_is_raised) {
+            close_group(begin, split);
+            close_group(split, end);
+            split_any = true;
+        }
+        else
+            close_group(begin, end);
+
+        begin = end;
+    }
+
+    if (!split_any)
+        return;
+
+    // Bail out rather than hand libvgcode a layer list its binary search cannot handle. Layers
+    // without extrusions carry no Z of their own and are skipped, exactly as libvgcode leaves
+    // theirs at zero.
+    const PreviewLayer *previous = nullptr;
+    for (const PreviewLayer &layer : preview_layers) {
+        if (!layer.has_z)
+            continue;
+        if (previous != nullptr && layer.z < previous->z)
+            return;
+        previous = &layer;
+    }
+
+    for (size_t i = 0; i < m_result.moves.size(); ++i)
+        m_result.moves[i].layer_id = new_layer_ids[i];
+}
+
 void GCodeProcessor::finalize(bool post_process)
 {
     m_result.z_offset = m_z_offset;
@@ -2693,6 +2804,9 @@ void GCodeProcessor::finalize(bool post_process)
             move.height = Wipe_Height;
         }
     }
+
+    // OrcaBrick: renumber preview layers before anything reads them.
+    split_staggered_preview_layers();
 
     // Orca: final pass -- also drains any filament-change delay still buffered because
     // calculate_time early-returns with fewer than two queued blocks (see calculate_time).

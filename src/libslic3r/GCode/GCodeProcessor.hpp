@@ -1101,6 +1101,10 @@ class Print;
         // 2) update used filament data
         void run_post_process();
 
+        // OrcaBrick: give Bricklaying's half-layer walls their own step in the Preview layer
+        // slider, where doing so provably keeps libvgcode's layer Zs monotonic.
+        void split_staggered_preview_layers();
+
         //BBS: different path_type is only used for arc move
         void store_move_vertex(EMoveType type, EMovePathType path_type = EMovePathType::Noop_move, bool internal_only = false);
 

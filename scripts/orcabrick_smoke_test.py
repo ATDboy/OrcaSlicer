@@ -304,6 +304,12 @@ def source_self_test(repository: Path) -> None:
             "path.staggered_z_offset * path.height",
             "m_config.staggered_perimeter_flow_ratio",
         ),
+        "src/libslic3r/GCode/GCodeProcessor.cpp": (
+            "void GCodeProcessor::split_staggered_preview_layers()",
+            "split_staggered_preview_layers();",
+            # the fail-safe: never commit a renumbering that breaks libvgcode's binary search
+            "if (previous != nullptr && layer.z < previous->z)",
+        ),
         "src/libslic3r/PrintObject.cpp": (
             'opt_key == "staggered_perimeters"',
             'opt_key == "staggered_perimeter_flow_ratio"',
@@ -325,8 +331,11 @@ def source_self_test(repository: Path) -> None:
     preview_sources = processor_header + processor_source + gcode_source
     if "ORCABRICK_LAYER_CHANGE" in preview_sources or "m_preview_layer_id" in preview_sources:
         raise RuntimeError(
-            "Synthetic OrcaBrick preview layers are forbidden because libvgcode "
-            "requires monotonically ordered layer groups"
+            "The G-code marker and the unconditional preview counter are forbidden: they split "
+            "every layer regardless of wall order, which is what produced non-monotonic layer "
+            "groups and black or vanishing geometry. Preview layers are now split by "
+            "GCodeProcessor::split_staggered_preview_layers(), which only splits a layer whose "
+            "raised extrusions form a contiguous tail and verifies the resulting Zs first."
         )
 
     for relative_path, snippets in required_source_wiring.items():

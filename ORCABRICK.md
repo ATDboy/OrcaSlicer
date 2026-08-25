@@ -28,24 +28,37 @@ wall extrusion when ON, and real XY+E motion after each staggered Z move.
 
 ## Preview behavior
 
-Preview shows the staggered walls at their real half-layer Z, drawn inside the
-nominal layer they belong to. **They are not separate steps in the layer
-slider**, and making them so is still unsolved.
+Preview shows the staggered walls at their real half-layer Z, and
+`GCodeProcessor::split_staggered_preview_layers()` gives them their own step in the
+layer slider, so each printed layer can appear as two: the nominal walls, then the
+half-layer walls above them.
+
+The split is deliberately conservative, because libvgcode groups vertices into
+layers by runs of equal `layer_id`, keeps one Z per layer (its last extrusion's) and
+binary searches those Zs. A layer is only split when its raised extrusions form a
+**contiguous tail** after at least one nominal extrusion, and the renumbering is
+discarded unless the resulting Z sequence is verified monotonic. Layers that do not
+qualify - typically several islands, where Arachne emits nominal and raised walls
+per island rather than per layer - stay whole and render as before. Non-Bricklaying
+prints have no raised extrusions and are untouched.
+
+Print statistics are unaffected: `MoveVertex::layer_id` feeds the viewer, while time
+estimation uses the separate `TimeBlock::layer_id`.
 
 Two earlier attempts were reverted and must not come back:
 
-1. A `;ORCABRICK_LAYER_CHANGE` comment that incremented Orca's real layer
-   counter. It corrupted layer statistics, total layer count and time
-   estimation.
-2. The same comment driving a dedicated `m_preview_layer_id`. This kept the
-   print bookkeeping clean but still produced black or vanishing geometry,
-   because a Bricklaying course runs Z0.2 -> Z0.3 -> Z0.2 while libvgcode
+1. A `;ORCABRICK_LAYER_CHANGE` comment that incremented Orca's real layer counter. It
+   corrupted layer statistics, total layer count and time estimation.
+2. The same comment driving a dedicated `m_preview_layer_id`. This kept the print
+   bookkeeping clean but still produced black or vanishing geometry, because it split
+   unconditionally: a Bricklaying course runs Z0.2 -> Z0.3 -> Z0.2, and libvgcode
    requires layer groups to increase monotonically.
 
-`scripts/orcabrick_smoke_test.py` fails the build if either symbol reappears in
-`GCode.cpp`, `GCodeProcessor.cpp` or `GCodeProcessor.hpp`. Any future attempt has
-to make libvgcode itself accept non-monotonic groups, not synthesise layers
-around it.
+`scripts/orcabrick_smoke_test.py` fails the build if either symbol reappears, and
+requires the validated splitter and its monotonic bail-out to be present.
+
+For reference, the upstream OrcaSlicer implementation (PR #8181, still open and
+alpha) does not touch the preview path at all and has the pre-split behaviour.
 
 ## Theme behavior
 
