@@ -454,7 +454,7 @@ void MaterialItem::doRender(wxDC& dc)
 
     if (m_selected)
     {
-        dc.SetPen(wxPen(wxColour("#009688"), FromDIP(2))); // ORCA selected item border color (Orca accent)
+        dc.SetPen(wxPen(StateColor::darkModeColorFor(wxColour("#009688")), FromDIP(2))); // ORCA selected item border color (Orca accent)
         dc.SetBrush(*wxTRANSPARENT_BRUSH);
         dc.DrawRoundedRectangle(FromDIP(1), FromDIP(1), size.x - FromDIP(1), size.y - FromDIP(1), 5);
     } else if (m_warning) {
@@ -748,7 +748,7 @@ void MaterialSyncItem::doRender(wxDC &dc)
     dc.DrawRoundedRectangle(1, 1, size.x - 1, size.y - 1, 5);
 
     if (m_selected) {
-        dc.SetPen(wxColour("#009688")); // ORCA selected item border color (Orca accent)
+        dc.SetPen(StateColor::darkModeColorFor(wxColour("#009688"))); // ORCA selected item border color (Orca accent)
         dc.SetBrush(*wxTRANSPARENT_BRUSH);
         dc.DrawRoundedRectangle(1, 1, size.x - 1, size.y - 1, 5);
     }
@@ -759,7 +759,7 @@ void MaterialSyncItem::doRender(wxDC &dc)
     dc.DrawRoundedRectangle(0, 0, size.x, size.y, 5);
 
     if (m_selected) {
-        dc.SetPen(wxPen(wxColour("#009688"), FromDIP(2))); // ORCA selected item border color (Orca accent)
+        dc.SetPen(wxPen(StateColor::darkModeColorFor(wxColour("#009688")), FromDIP(2))); // ORCA selected item border color (Orca accent)
         dc.SetBrush(*wxTRANSPARENT_BRUSH);
         dc.DrawRoundedRectangle(FromDIP(1), FromDIP(1), size.x - FromDIP(1), size.y - FromDIP(1), 5);
     }

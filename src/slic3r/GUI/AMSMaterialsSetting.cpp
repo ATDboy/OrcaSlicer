@@ -1599,7 +1599,7 @@ void ColorPicker::doRender(wxDC& dc)
     }
 
     if (m_show_full) {
-        dc.SetPen(wxPen(wxColour("#6B6B6B")));
+        dc.SetPen(wxPen(StateColor::darkModeColorFor(wxColour("#6B6B6B")))); // ORCA custom paint, map the outline for dark mode
         dc.SetBrush(*wxTRANSPARENT_BRUSH);
         dc.DrawCircle(size.x / 2, size.y / 2, radius);
 

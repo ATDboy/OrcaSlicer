@@ -526,24 +526,29 @@ void SwitchBoard::render(wxDC &dc)
 
 void SwitchBoard::doRender(wxDC &dc)
 {
-    wxColour disable_color = wxColour(0xCECECE);
+    // ORCA: a custom painted control is never visited by GUI_App::UpdateDarkUI, so the palette has to be
+    // mapped here or the board keeps its light colours in dark mode.
+    const wxColour disable_color = StateColor::darkModeColorFor(wxColour("#CECECE"));
+    const wxColour track_color   = StateColor::darkModeColorFor(wxColour("#EEEEEE"));
+    const wxColour active_color  = StateColor::darkModeColorFor(wxColour("#009688"));
+    const wxColour label_color   = StateColor::darkModeColorFor(wxColour("#262E30")); // shared button/input text colour
 
     dc.SetPen(*wxTRANSPARENT_PEN);
 
-    if (is_enable) {dc.SetBrush(wxBrush(0xeeeeee));
+    if (is_enable) {dc.SetBrush(wxBrush(track_color));
     } else {dc.SetBrush(disable_color);}
     dc.DrawRoundedRectangle(0, 0, GetSize().x, GetSize().y, 8);
 
 	/*left*/
     if (switch_left) {
-        is_enable ? dc.SetBrush(wxBrush(wxColour(0, 150, 136))) : dc.SetBrush(disable_color);
+        is_enable ? dc.SetBrush(wxBrush(active_color)) : dc.SetBrush(disable_color);
         dc.DrawRoundedRectangle(0, 0, GetSize().x / 2, GetSize().y, 8);
 	}
 
     if (switch_left) {
 		dc.SetTextForeground(*wxWHITE);
     } else {
-        dc.SetTextForeground(0x333333);
+        dc.SetTextForeground(label_color);
 	}
 
     dc.SetFont(::Label::Body_13);
@@ -554,7 +559,7 @@ void SwitchBoard::doRender(wxDC &dc)
 
 	/*right*/
     if (switch_right) {
-        if (is_enable) {dc.SetBrush(wxBrush(wxColour(0, 150, 136)));
+        if (is_enable) {dc.SetBrush(wxBrush(active_color));
         } else {dc.SetBrush(disable_color);}
         dc.DrawRoundedRectangle(GetSize().x / 2, 0, GetSize().x / 2, GetSize().y, 8);
 	}
@@ -563,7 +568,7 @@ void SwitchBoard::doRender(wxDC &dc)
     if (switch_right) {
         dc.SetTextForeground(*wxWHITE);
     } else {
-        dc.SetTextForeground(0x333333);
+        dc.SetTextForeground(label_color);
     }
     dc.DrawText(rightLabel, wxPoint((GetSize().x / 2 - right_txt_size.x) / 2 + GetSize().x / 2, (GetSize().y - right_txt_size.y) / 2));
 
