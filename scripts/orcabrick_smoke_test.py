@@ -282,7 +282,7 @@ def source_self_test(repository: Path) -> None:
     ).read_text(encoding="utf-8")
     expected_upload = (
         "${{ github.workspace }}/${{ env.BUILD_DIR }}/"
-        "OrcaBrick_Setup_*${{ env.ARCH_SUFFIX }}.exe"
+        "OrcaBrick_Setup${{ env.ARCH_SUFFIX }}.exe"
     )
     if expected_upload not in workflow_text:
         raise RuntimeError("Installer artifact upload path does not match CPack output")
