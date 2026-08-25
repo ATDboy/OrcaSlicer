@@ -273,13 +273,9 @@ def source_self_test(repository: Path) -> None:
         )
 
     cmake_text = (repository / "CMakeLists.txt").read_text(encoding="utf-8")
-    expected_cpack = (
-        'set (CPACK_PACKAGE_FILE_NAME '
-        '"OrcaBrick_Setup_${ORCA_VERSION_MAJOR}.${ORCA_VERSION_MINOR}.'
-        '${ORCA_VERSION_PATCH}_build_${ORCABRICK_BUILD}")'
-    )
+    expected_cpack = 'set (CPACK_PACKAGE_FILE_NAME "OrcaBrick_Setup")'
     if expected_cpack not in cmake_text:
-        raise RuntimeError("CMake installer name is not tied to ORCABRICK_BUILD")
+        raise RuntimeError("CMake installer name is not the stable OrcaBrick name")
 
     workflow_text = (
         repository / ".github" / "workflows" / "build_orca.yml"
@@ -317,6 +313,23 @@ def source_self_test(repository: Path) -> None:
             'append_single_option_line("staggered_perimeter_flow_ratio")',
         ),
     }
+    processor_header = (
+        repository / "src" / "libslic3r" / "GCode" / "GCodeProcessor.hpp"
+    ).read_text(encoding="utf-8")
+    processor_source = (
+        repository / "src" / "libslic3r" / "GCode" / "GCodeProcessor.cpp"
+    ).read_text(encoding="utf-8")
+    if "unsigned int m_preview_layer_id;" not in processor_header:
+        raise RuntimeError("Preview layer counter is missing")
+    preview_handler = (
+        'if (comment == "ORCABRICK_LAYER_CHANGE") {\n'
+        "        ++m_preview_layer_id;"
+    )
+    if preview_handler not in processor_source:
+        raise RuntimeError("OrcaBrick marker does not advance only the preview layer")
+    if "std::max<unsigned int>(1, m_preview_layer_id) - 1" not in processor_source:
+        raise RuntimeError("Move vertices are not grouped by preview layer")
+
     for relative_path, snippets in required_source_wiring.items():
         source = (repository / relative_path).read_text(encoding="utf-8")
         missing = [snippet for snippet in snippets if snippet not in source]

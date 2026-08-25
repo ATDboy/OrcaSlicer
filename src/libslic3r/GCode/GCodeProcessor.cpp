@@ -2546,6 +2546,7 @@ void GCodeProcessor::reset()
     m_processing_start_custom_gcode = false;
     m_g1_line_id = 0;
     m_layer_id = 0;
+    m_preview_layer_id = 0;
     m_cp_color.reset();
 
     m_producer = EProducer::Unknown;
@@ -3322,13 +3323,13 @@ void GCodeProcessor::process_tags(const std::string_view comment, bool producers
     // Preview-only Bricklaying half layer. This is intentionally separate from
     // the standard layer tag: it changes visualization grouping, not print logic.
     if (comment == "ORCABRICK_LAYER_CHANGE") {
-        ++m_layer_id;
+        ++m_preview_layer_id;
         return;
     }
 
     // layer change tag
     if (comment == reserved_tag(ETags::Layer_Change)) {
-        ++m_layer_id;
+        advance_layer();
         return;
     }
 }
@@ -3422,7 +3423,7 @@ bool GCodeProcessor::process_cura_tags(const std::string_view comment)
     tag = "LAYER:";
     pos = comment.find(tag);
     if (pos != comment.npos) {
-        ++m_layer_id;
+        advance_layer();
         return true;
     }
 
@@ -3570,7 +3571,7 @@ bool GCodeProcessor::process_simplify3d_tags(const std::string_view comment)
         const std::string_view data = cmt.substr(pos + tag.length());
         size_t end_start = data.find("end");
         if (end_start == data.npos)
-            ++m_layer_id;
+            advance_layer();
 
         return true;
     }
@@ -3621,7 +3622,7 @@ bool GCodeProcessor::process_craftware_tags(const std::string_view comment)
     // layer
     pos = comment.find(" Layer #");
     if (pos == 0) {
-        ++m_layer_id;
+        advance_layer();
         return true;
     }
 
@@ -3684,7 +3685,7 @@ bool GCodeProcessor::process_ideamaker_tags(const std::string_view comment)
     // layer
     pos = comment.find("LAYER:");
     if (pos == 0) {
-        ++m_layer_id;
+        advance_layer();
         return true;
     }
 
@@ -3792,7 +3793,7 @@ bool GCodeProcessor::process_kissslicer_tags(const std::string_view comment)
     // layer
     pos = comment.find(" BEGIN_LAYER_");
     if (pos == 0) {
-        ++m_layer_id;
+        advance_layer();
         return true;
     }
 
@@ -5702,7 +5703,7 @@ void GCodeProcessor::store_move_vertex(EMoveType type, EMovePathType path_type, 
         move_jerk,
         { 0.0f, 0.0f }, // time
         static_cast<float>(m_layer_id), //layer_duration: set later
-        std::max<unsigned int>(1, m_layer_id) - 1,
+        std::max<unsigned int>(1, m_preview_layer_id) - 1,
         internal_only,
         m_object_label_id,
         m_print_z

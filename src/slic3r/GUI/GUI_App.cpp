@@ -2381,7 +2381,7 @@ void GUI_App::init_app_config()
     SetAppName(SLIC3R_APP_KEY);
 //	SetAppName(SLIC3R_APP_KEY "-alpha");
 //  SetAppName(SLIC3R_APP_KEY "-beta");
-//	SetAppDisplayName(SLIC3R_APP_NAME);
+	SetAppDisplayName(SLIC3R_APP_NAME);
 
 	// Set the Slic3r data directory at the Slic3r XS module.
 	// Unix: ~/ .Slic3r
@@ -6022,17 +6022,11 @@ std::string GUI_App::format_display_version()
 {
     if (!version_display.empty()) return version_display;
 
+    // Keep build metadata for updates and diagnostics, but do not expose it in
+    // the product name or splash screen.
     const std::string technical_version = SoftFever_VERSION;
-    const std::string marker = "+OrcaBrick";
-    const size_t marker_pos = technical_version.find(marker);
-    if (marker_pos == std::string::npos) {
-        version_display = technical_version;
-    } else {
-        const std::string build = technical_version.substr(marker_pos + marker.size());
-        version_display = technical_version.substr(0, marker_pos);
-        if (!build.empty())
-            version_display += " - build " + build;
-    }
+    const size_t metadata_pos = technical_version.find('+');
+    version_display = technical_version.substr(0, metadata_pos);
     return version_display;
 }
 

@@ -199,7 +199,8 @@ wxColour StateColor::AccentHoverColor() { return LightenDarkenColor(gAccentColor
 
 static wxColour apply_accent(const wxColour &color)
 {
-    if (color == wxColour("#009688") || color == wxColour("#00675b"))
+    if (color == wxColour("#009688") || color == wxColour("#00675b") ||
+        color == wxColour("#1F8EEA") || color == wxColour("#2778D2"))
         return StateColor::AccentColor();
     if (color == wxColour("#26A69A") || color == wxColour("#008172"))
         return StateColor::AccentHoverColor();

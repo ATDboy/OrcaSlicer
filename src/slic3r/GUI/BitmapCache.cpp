@@ -335,11 +335,11 @@ wxBitmap* BitmapCache::load_svg(const std::string &bitmap_name, unsigned target_
         replaces[old_color] = new_color;
         replaces["\"" + old_color + "\""] = "\"" + new_color + "\"";
     };
-    for (const char *color : {"#009688", "#00675B", "#00675b", "#00AE42", "#0x00AE42", "#52C7B8", "#52c7b8"})
+    for (const char *color : {"#009688", "#00675B", "#00675b", "#00AE42", "#0x00AE42", "#52C7B8", "#52c7b8",
+                              "#1F8EEA", "#1f8eea", "#2778D2", "#2778d2"})
         replace_svg_color(color, accent);
     for (const char *color : {"#26A69A", "#26a69a", "#008172"})
         replace_svg_color(color, accent_hover);
-    replaces["\"#0x00AE42\""] = "\"#009688\"";
     replaces["\"#00FF00\""] = "\"#52c7b8\"";
     if (dark_mode) {
         replaces["\"#262E30\""] = "\"#EFEFF0\"";

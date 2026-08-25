@@ -1,66 +1,43 @@
-# OrcaBrick 2.4.2
+# OrcaBrick
 
-OrcaBrick is an experimental OrcaSlicer 2.4.2 fork with native Bricklaying
-(staggered walls), based on the latest recoverable Nanashi implementation.
+OrcaBrick is the branded OrcaSlicer fork on the `orcabrick-2.4.2` branch.
 
-## Current release status
+## Bricklaying behavior
 
-Build 4 fixes Bricklaying on disconnected Arachne multipaths, preserves Arachne's dependency ordering while preferring nominal-Z walls, and verifies half-layer inner-wall extrusion without depending on travel comments.
+When **Staggered perimeters / Bricklaying** is enabled with Arachne and at least
+three wall loops, alternating inner perimeters are emitted at half-layer Z
+positions. The affected extrusion flow is scaled by
+`staggered_perimeter_flow_ratio`. Disabling the option produces normal
+full-layer toolpaths.
 
+The G-code proof slices the same model with the feature OFF and ON. It requires
+different output, no half-layer extrusion when OFF, repeated half-layer inner
+wall extrusion when ON, and real XY+E motion after each staggered Z move.
 
-Do not treat an installer as verified merely because it compiles. A release is
-ready only when the Windows workflow is green and its `OrcaBrick_GCode_Proof`
-artifact reports `"result": "PASS"`. The proof slices the same cube with
-Bricklaying off and on. It requires explicit inner-wall perimeter moves at
-several half-layer heights, real XY+E wall extrusion after every move, and zero
-half-layer perimeter moves in the off file. The check intentionally follows
-the emitted toolpaths rather than relying on optional G-code comments.
+## Preview behavior
 
-The obsolete release-ready notice for the earlier, unverified installer has
-been removed.
+`;ORCABRICK_LAYER_CHANGE` creates extra layer groups only in Preview. It has a
+dedicated preview counter and no longer changes Orca's real print-layer count,
+time estimation, temperature logic, or total-layer metadata. This prevents the
+black/disappearing model caused by mixing preview half-layers with real layers.
 
-## Using Bricklaying
+## Theme behavior
 
-The checkbox is under **Process > Strength > Walls > Bricklaying (staggered
-walls)** in Advanced or Expert mode. When enabled through the GUI, OrcaBrick
-offers to apply these compatibility settings:
+The selected accent is applied to Orca teal/green tokens and legacy blue
+controls and SVG icons. Orange back/reset controls intentionally remain orange
+for contrast. An unset model/filament color follows the accent; any explicit
+filament or AMS color wins.
 
-- fixed and matching normal/first-layer height;
-- matching top-surface and outer-wall width;
-- Arachne wall generator;
-- at least three walls;
-- Spiral vase off;
-- Alternate extra wall off;
-- Only one wall on first layer off.
+## Branding and packaging
 
-Bricklaying deliberately controls wall order to reduce nozzle-collision risk,
-so the normal wall-order preference is not authoritative while the feature is
-enabled. The safe starting value for **Staggered wall flow ratio** is 1.00.
-Higher flow is an experiment, not a universal improvement.
+The visible application and installer product name is **OrcaBrick**. Internal
+technical build metadata remains available for update/build diagnostics but is
+not appended to the visible product name. Windows installers use the stable
+filename `OrcaBrick_Setup_x64.exe` or `OrcaBrick_Setup_arm64.exe`.
 
-Preview can look subtle because only selected inner perimeters move to
-half-layer heights; the whole model does not gain extra logical layers. Inspect
-the wall toolpaths closely and test a small part before a long print. Sloped
-walls, overhangs, support-contact areas, internal holes, adaptive layer heights,
-and very short objects remain known risk areas of the upstream experimental
-implementation.
+## Build gate
 
-## Appearance and identity
-
-Build 4 uses neon cyan (`#00E5FF`) for the main accent controls by default.
-Change it under **Preferences > General > Accent colour** and restart
-OrcaBrick. Some specialized icons and views use their own semantic colors and
-are intentionally not recolored.
-
-The visible program name is **OrcaBrick**, and the visible version is
-**2.4.2 - build 4**. The internal application key remains OrcaSlicer so existing
-printer, filament, and process profiles stay compatible. The technical build
-version is `2.4.2+OrcaBrick4` and is not used as the normal display name.
-
-## Sources
-
-- OrcaSlicer 2.4.2: <https://github.com/OrcaSlicer/OrcaSlicer/releases/tag/v2.4.2>
-- Original native implementation and known issues: <https://github.com/OrcaSlicer/OrcaSlicer/pull/8181>
-- Independent strength testing: <https://www.cnckitchen.com/blog/brick-layers-make-3d-prints-stronger>
-- Maintained post-processing implementation and notes: <https://github.com/TengerTechnologies/Bricklayers>
-- Latest recovered Nanashi source commit: `b1700658fc4d924e87c71d88e97a0602ccc08c67`
+The Windows workflow first runs Python syntax checks, source-wiring checks, and
+`git diff --check`. It then builds OrcaBrick, runs the real ON/OFF G-code proof,
+and only afterward creates and uploads the installer. Active builds are not
+cancelled by a later push.

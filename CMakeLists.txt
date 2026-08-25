@@ -928,12 +928,12 @@ endif ()
 install(FILES ${CMAKE_SOURCE_DIR}/LICENSE.txt DESTINATION ".")
 configure_file(${LIBDIR}/dev-utils/platform/unix/fhs.hpp.in ${LIBDIR_BIN}/dev-utils/platform/unix/fhs.hpp)
 
-set (CPACK_PACKAGE_NAME "OrcaSlicer")
+set (CPACK_PACKAGE_NAME "OrcaBrick")
 set (CPACK_PACKAGE_VENDOR "SoftFever")
 set (CPACK_PACKAGE_VERSION_MAJOR "${ORCA_VERSION_MAJOR}")
 set (CPACK_PACKAGE_VERSION_MINOR "${ORCA_VERSION_MINOR}")
 set (CPACK_PACKAGE_VERSION_PATCH "${ORCA_VERSION_PATCH}")
-set (CPACK_PACKAGE_FILE_NAME "OrcaBrick_Setup_${ORCA_VERSION_MAJOR}.${ORCA_VERSION_MINOR}.${ORCA_VERSION_PATCH}_build_${ORCABRICK_BUILD}")
+set (CPACK_PACKAGE_FILE_NAME "OrcaBrick_Setup")
 # Suffix the Windows installer with its target arch so the x64 and arm64 builds
 # produce distinct filenames (matches ARCH_SUFFIX in build_orca.yml). Same
 # CMAKE_SYSTEM_PROCESSOR mapping used by orcaslicer_copy_dlls() above.
