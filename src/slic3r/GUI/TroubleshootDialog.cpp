@@ -120,9 +120,8 @@ TroubleshootDialog::TroubleshootDialog()
     SetFont(wxGetApp().normal_font());
     SetBackgroundColour(*wxWHITE);
 
-    auto data_dir   = boost::filesystem::path(Slic3r::data_dir());
-    auto app_config = wxGetApp().app_config;
-    bool is_dark    = wxGetApp().dark_mode();
+    auto data_dir = boost::filesystem::path(Slic3r::data_dir());
+    bool is_dark  = wxGetApp().dark_mode();
  
     // LEFT SIZER //////////////////////
 
