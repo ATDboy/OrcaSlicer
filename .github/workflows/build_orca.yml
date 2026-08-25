@@ -395,7 +395,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: OrcaBrick_Windows_Setup${{ env.ARCH_SUFFIX }}
-          path: ${{ github.workspace }}/${{ env.BUILD_DIR }}/OrcaBrick_Setup_*${{ env.ARCH_SUFFIX }}.exe
+          path: ${{ github.workspace }}/${{ env.BUILD_DIR }}/OrcaBrick_Setup${{ env.ARCH_SUFFIX }}.exe
           if-no-files-found: error
 
       - name: Upload artifacts Win PDB
