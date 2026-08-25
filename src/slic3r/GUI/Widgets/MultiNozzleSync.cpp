@@ -608,7 +608,7 @@ void HotEndTable::OnPaint(wxPaintEvent& evt)
     wxPaintDC dc(this);
     wxSize size = GetClientSize();
 
-    dc.SetPen(wxPen(wxColour("#EEEEEE"), 2));
+    dc.SetPen(wxPen(StateColor::darkModeColorFor(wxColour("#EEEEEE")), 2)); // ORCA custom paint, map the border for dark mode
     dc.SetBrush(*wxTRANSPARENT_BRUSH);
     dc.DrawRoundedRectangle(0, 0, size.GetWidth()-2, size.GetHeight()-2, 5);
 }

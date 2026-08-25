@@ -685,7 +685,7 @@ void FilamentPickerDialog::OnButtonPaint(wxPaintEvent& event)
     }
 
     // Draw the green border
-    dc.SetPen(wxPen(wxColour("#009688"), 2));  // Green pen, 2px thick
+    dc.SetPen(wxPen(StateColor::darkModeColorFor(wxColour("#009688")), 2));  // ORCA accent border, mapped for dark mode
     dc.SetBrush(*wxTRANSPARENT_BRUSH);
     dc.DrawRectangle(1, 1, COLOR_BTN_SIZE.GetWidth() - 1, COLOR_BTN_SIZE.GetHeight() - 1);
 }

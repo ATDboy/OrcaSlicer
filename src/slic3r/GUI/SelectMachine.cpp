@@ -6785,11 +6785,12 @@ void SendModeSwitchButton::doRender(wxDC &dc)
     if (is_selected) {
         dc.DrawBitmap(m_img_selected.bmp(), wxPoint(0, 0));
         dc.DrawBitmap(m_img_selected_tag.bmp(), wxPoint(left, (size.y - m_img_selected_tag.GetBmpSize().y) / 2));
-        dc.SetTextForeground("#009688");
+        // ORCA: the tag bitmaps are re-coloured for dark mode by BitmapCache, so the label has to follow.
+        dc.SetTextForeground(StateColor::darkModeColorFor(wxColour("#009688")));
     }else {
         dc.DrawBitmap(m_img_unselected.bmp(), wxPoint(0, 0));
         dc.DrawBitmap(m_img_unselected_tag.bmp(), wxPoint(left, (size.y - m_img_selected_tag.GetBmpSize().y) / 2));
-        dc.SetTextForeground(0x5C5C5C);
+        dc.SetTextForeground(StateColor::darkModeColorFor(wxColour("#6B6B6B")));
     }
     dc.DrawText(GetLabel(), left + m_img_selected_tag.GetBmpSize().x + FromDIP(8), (size.y - textSize.y) / 2);
 }

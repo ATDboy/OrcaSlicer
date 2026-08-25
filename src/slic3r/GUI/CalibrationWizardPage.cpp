@@ -648,7 +648,7 @@ void PAPageHelpPanel::create_pop_window()
 
     m_pop_win->Bind(wxEVT_PAINT, [this](auto&) {
         wxPaintDC dc(m_pop_win);
-        dc.SetPen({ 0xACACAC });
+        dc.SetPen(StateColor::darkModeColorFor(wxColour("#ACACAC"))); // ORCA custom paint, map the border for dark mode
         dc.SetBrush(*wxTRANSPARENT_BRUSH);
         dc.DrawRectangle({ 0, 0 }, m_pop_win->GetSize());
         });
