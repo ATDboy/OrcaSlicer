@@ -347,7 +347,8 @@ public:
     static const ImVec4 COL_TOOLBAR_BG_DARK;
     static const ImVec4 COL_SEPARATOR;
     static const ImVec4 COL_SEPARATOR_DARK;
-    static const ImVec4 COL_ORCA;
+    // OrcaBrick: refreshed from the user accent in init_style(); not const for that reason.
+    static ImVec4 COL_ORCA;
     static const ImVec4 COL_MODIFIED;
     static const ImVec4 COL_WARNING;
 

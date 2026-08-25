@@ -184,7 +184,7 @@ const ImVec4 ImGuiWrapper::COL_WINDOW_BG         = { 1.000f, 1.000f, 1.000f, 1.0
 const ImVec4 ImGuiWrapper::COL_WINDOW_BG_DARK    = { 45 / 255.f, 45 / 255.f, 49 / 255.f, 1.f };
 const ImVec4 ImGuiWrapper::COL_TOOLBAR_BG        = { 250 / 255.f, 250 / 255.f, 250 / 255.f, 1.f }; // ORCA color matches with toolbar_background.png
 const ImVec4 ImGuiWrapper::COL_TOOLBAR_BG_DARK   = { 57  / 255.f, 60  / 255.f, 66  / 255.f, 1.f }; // ORCA color matches with toolbar_background_dark.png
-const ImVec4 ImGuiWrapper::COL_ORCA              = to_ImVec4(ColorRGBA::ORCA());
+ImVec4 ImGuiWrapper::COL_ORCA                    = to_ImVec4(ColorRGBA::ORCA());
 const ImVec4 ImGuiWrapper::COL_MODIFIED          = { 253.f / 255.f, 111.f / 255.f, 40.f / 255.f, 1}; // ORCA same color with m_color_label_modified
 const ImVec4 ImGuiWrapper::COL_WARNING           = to_ImVec4(ColorRGB::WARNING());
 
@@ -3001,6 +3001,14 @@ void ImGuiWrapper::init_input()
 
 void ImGuiWrapper::init_style()
 {
+    // OrcaBrick: the accent is only known once the app config has been read, which is after
+    // this constant's static initialiser ran. Refresh it here so the 3D view, gizmos, legend
+    // and slider follow the user's accent instead of the compiled-in default.
+    {
+        const wxColour accent = StateColor::AccentColor();
+        COL_ORCA = ImVec4(accent.Red() / 255.f, accent.Green() / 255.f, accent.Blue() / 255.f, 1.0f);
+    }
+
     ImGuiStyle &style = ImGui::GetStyle();
 
     auto set_color = [&](ImGuiCol_ entity, ImVec4 color) {

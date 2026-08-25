@@ -16897,6 +16897,12 @@ std::vector<std::string> Plater::get_extruder_colors_from_plater_config(const GC
             return filament_colors;
 
         filament_colors = (config->option<ConfigOptionStrings>("filament_colour"))->values;
+        // OrcaBrick: resolve the "automatic" (empty) sentinel here, the single GUI-side source
+        // for both Preview and the layer slider. Otherwise GCodeProcessor substitutes its own
+        // #FF8000 fallback and they disagree with the plater, which paints it with the accent.
+        for (std::string &color : filament_colors)
+            if (color.empty())
+                color = StateColor::AccentColor().GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
         return filament_colors;
     }
 }
