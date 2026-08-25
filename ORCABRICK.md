@@ -60,6 +60,41 @@ requires the validated splitter and its monotonic bail-out to be present.
 For reference, the upstream OrcaSlicer implementation (PR #8181, still open and
 alpha) does not touch the preview path at all and has the pre-split behaviour.
 
+## Upstream status and known Bricklaying limits
+
+Two other implementations of this feature exist, and **neither solves the Preview
+problem**:
+
+* **OrcaSlicer PR #8181** (vipulrajan) is still open and alpha. Its diff touches
+  `ExtrusionEntity`, `GCode.cpp`, `LayerRegion`, `PerimeterGenerator`, `Preset`,
+  `PrintConfig`, `ConfigManipulation` and `Tab.cpp` - no `GCodeProcessor`, no
+  `libvgcode`, no `GCodeViewer`.
+* **NanashiTheNameless' fork**, which this port descends from, is the same: across its
+  whole history only merge commits from upstream ever touch the preview sources. His
+  own `doc/staggered-perimiters-known-issues.md` lists the preview behaviour as an
+  open issue, noting it is "worsened if an object has 2 separate sections of
+  outer-walls as they get treated as separate 'towers'" - the multi-island case that
+  `split_staggered_preview_layers()` deliberately declines to split.
+
+His known-issue list is worth keeping, because these are print-quality limits rather
+than preview cosmetics, and they apply here too:
+
+* Staggering ignores wall slope, so inner walls get raised even where they are visible
+  from above on a sloped surface.
+* With `only_one_wall_first_layer` enabled, the flow correction for the raised inner
+  walls is not applied correctly.
+* Adaptive layer height is not supported.
+* First layer height must equal layer height.
+
+Two of his issues do **not** apply to this branch:
+
+* His multipath handling staggers only the last `ExtrusionMultiPath` of a split run,
+  because it runs after the splitting loop. Here the offset is applied to `paths`
+  before splitting, so every sub-path is staggered.
+* His top-layer check misbehaves with several models of different heights. Here
+  `number_of_layers` comes from `layer()->object()->layer_count()`, which is per print
+  object, so each object gets its own first/last layer handling.
+
 ## Theme behavior
 
 The selected accent is applied to Orca teal/green tokens, legacy blue controls,
