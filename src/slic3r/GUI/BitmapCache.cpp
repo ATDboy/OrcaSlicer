@@ -331,15 +331,20 @@ wxBitmap* BitmapCache::load_svg(const std::string &bitmap_name, unsigned target_
     // the user-selected accent instead of remaining hard-coded teal.
     const std::string accent = StateColor::AccentColor().GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
     const std::string accent_hover = StateColor::AccentHoverColor().GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
+    const std::string accent_light = StateColor::AccentLightColor().GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
     const auto replace_svg_color = [&replaces](const std::string &old_color, const std::string &new_color) {
         replaces[old_color] = new_color;
         replaces["\"" + old_color + "\""] = "\"" + new_color + "\"";
     };
-    for (const char *color : {"#009688", "#00675B", "#00675b", "#00AE42", "#0x00AE42", "#52C7B8", "#52c7b8",
-                              "#1F8EEA", "#1f8eea", "#2778D2", "#2778d2"})
+    for (const char *color : {"#009688", "#00675B", "#00675b", "#00AE42", "#0x00AE42",
+                              "#1F8EEA", "#1f8eea", "#2778D2", "#2778d2",
+                              "#22BFB0", "#22bfb0", "#00FFD4", "#00ffd4",
+                              "#52C7B8", "#52c7b8"})
         replace_svg_color(color, accent);
     for (const char *color : {"#26A69A", "#26a69a", "#008172"})
         replace_svg_color(color, accent_hover);
+    for (const char *color : {"#BFE1DE", "#bfe1de", "#E5F0EE", "#e5f0ee"})
+        replace_svg_color(color, accent_light);
     replaces["\"#00FF00\""] = "\"#52c7b8\"";
     if (dark_mode) {
         replaces["\"#262E30\""] = "\"#EFEFF0\"";

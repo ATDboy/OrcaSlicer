@@ -834,10 +834,7 @@ class Print;
         float m_zero_layer_height; // mm
         bool m_processing_start_custom_gcode;
         unsigned int m_g1_line_id;
-        // Real print layer count is used by time/statistics processing.
         unsigned int m_layer_id;
-        // Preview grouping may include OrcaBrick's staggered half-layers.
-        unsigned int m_preview_layer_id;
         CpColor m_cp_color;
         SeamsDetector m_seams_detector;
         OptionsZCorrector m_options_z_corrector;
@@ -940,11 +937,6 @@ class Print;
 
         // Process tags embedded into comments
         void process_tags(const std::string_view comment, bool producers_enabled);
-        void advance_layer()
-        {
-            ++m_layer_id;
-            ++m_preview_layer_id;
-        }
         bool process_producers_tags(const std::string_view comment);
         bool process_bambuslicer_tags(const std::string_view comment);
         bool process_cura_tags(const std::string_view comment);

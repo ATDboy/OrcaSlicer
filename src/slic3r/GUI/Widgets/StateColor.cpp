@@ -197,13 +197,30 @@ void StateColor::SetAccentColor(const wxColour &color)
 wxColour StateColor::AccentColor() { return gAccentColor; }
 wxColour StateColor::AccentHoverColor() { return LightenDarkenColor(gAccentColor, gDarkMode ? -10 : -15); }
 
+wxColour StateColor::AccentLightColor()
+{
+    const wxColour background = gDarkMode ? wxColour("#2B2B30") : wxColour("#FFFFFF");
+    const double accent_weight = gDarkMode ? 0.35 : 0.18;
+    const auto blend = [accent_weight](unsigned char accent, unsigned char base) {
+        return static_cast<unsigned char>(std::lround(accent * accent_weight + base * (1.0 - accent_weight)));
+    };
+    return wxColour(blend(gAccentColor.Red(), background.Red()),
+                    blend(gAccentColor.Green(), background.Green()),
+                    blend(gAccentColor.Blue(), background.Blue()));
+}
+
 static wxColour apply_accent(const wxColour &color)
 {
+    // Primary tokens used across classic widgets, newer blue controls and SVG-derived UI.
     if (color == wxColour("#009688") || color == wxColour("#00675b") ||
-        color == wxColour("#1F8EEA") || color == wxColour("#2778D2"))
+        color == wxColour("#1F8EEA") || color == wxColour("#2778D2") ||
+        color == wxColour("#00AE42") || color == wxColour("#22BFB0") ||
+        color == wxColour("#00FFD4") || color == wxColour("#52C7B8"))
         return StateColor::AccentColor();
     if (color == wxColour("#26A69A") || color == wxColour("#008172"))
         return StateColor::AccentHoverColor();
+    if (color == wxColour("#BFE1DE") || color == wxColour("#E5F0EE"))
+        return StateColor::AccentLightColor();
     return color;
 }
 

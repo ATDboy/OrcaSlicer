@@ -649,8 +649,6 @@ private:
     Print* m_curr_print = nullptr;
     unsigned int m_toolchange_count;
     coordf_t m_nominal_z;
-    // One preview-only marker per nominal layer when Bricklaying emits a half-layer wall.
-    bool m_orcabrick_preview_layer_marked = false;
     bool m_need_change_layer_lift_z = false;
     int m_start_gcode_filament = -1;
     std::string m_filament_instances_code;

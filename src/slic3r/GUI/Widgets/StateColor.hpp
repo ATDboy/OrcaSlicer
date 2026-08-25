@@ -34,6 +34,7 @@ public:
     static void SetAccentColor(const wxColour &color);
     static wxColour AccentColor();
     static wxColour AccentHoverColor();
+    static wxColour AccentLightColor();
 
     static std::map<wxColour, wxColour> const & GetDarkMap();
     static wxColour darkModeColorFor(wxColour const &color);

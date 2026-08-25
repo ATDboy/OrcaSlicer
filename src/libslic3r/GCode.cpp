@@ -5685,7 +5685,6 @@ std::string GCode::preamble()
 std::string GCode::change_layer(coordf_t print_z)
 {
     std::string gcode;
-    m_orcabrick_preview_layer_marked = false;
     if (m_layer_count > 0)
         // Increment a progress bar indicator.
         gcode += m_writer.update_progress(++ m_layer_index, m_layer_count);
@@ -6359,14 +6358,6 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
     const double staggered_z = path.staggered_z_offset * path.height;
     const double target_z = should_apply_staggered_offset ?
         m_nominal_z + staggered_z : m_nominal_z;
-
-    // The viewer normally groups moves only by ;LAYER_CHANGE. Mark the first
-    // half-layer wall so Bricklaying heights appear in Preview without changing
-    // any printer command or the slicer's nominal layer bookkeeping.
-    if (has_staggered_offset && !m_orcabrick_preview_layer_marked) {
-        gcode += ";ORCABRICK_LAYER_CHANGE\n";
-        m_orcabrick_preview_layer_marked = true;
-    }
 
     const auto get_sloped_z = [&sloped, &path, this](double z_ratio) {
         const auto height = sloped->height;

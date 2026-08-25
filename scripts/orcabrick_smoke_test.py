@@ -319,16 +319,15 @@ def source_self_test(repository: Path) -> None:
     processor_source = (
         repository / "src" / "libslic3r" / "GCode" / "GCodeProcessor.cpp"
     ).read_text(encoding="utf-8")
-    if "unsigned int m_preview_layer_id;" not in processor_header:
-        raise RuntimeError("Preview layer counter is missing")
-    preview_handler = (
-        'if (comment == "ORCABRICK_LAYER_CHANGE") {\n'
-        "        ++m_preview_layer_id;"
+    gcode_source = (repository / "src" / "libslic3r" / "GCode.cpp").read_text(
+        encoding="utf-8"
     )
-    if preview_handler not in processor_source:
-        raise RuntimeError("OrcaBrick marker does not advance only the preview layer")
-    if "std::max<unsigned int>(1, m_preview_layer_id) - 1" not in processor_source:
-        raise RuntimeError("Move vertices are not grouped by preview layer")
+    preview_sources = processor_header + processor_source + gcode_source
+    if "ORCABRICK_LAYER_CHANGE" in preview_sources or "m_preview_layer_id" in preview_sources:
+        raise RuntimeError(
+            "Synthetic OrcaBrick preview layers are forbidden because libvgcode "
+            "requires monotonically ordered layer groups"
+        )
 
     for relative_path, snippets in required_source_wiring.items():
         source = (repository / relative_path).read_text(encoding="utf-8")
@@ -427,9 +426,9 @@ def run_proof(executable: Path, repository: Path, workdir: Path) -> int:
         errors.append(
             f"Bricklaying OFF unexpectedly contains {off_preview_markers} preview half-layer markers"
         )
-    if on_preview_markers < 3:
+    if on_preview_markers:
         errors.append(
-            f"Bricklaying ON contains only {on_preview_markers} preview half-layer markers; expected at least 3"
+            f"Bricklaying ON unexpectedly contains {on_preview_markers} synthetic preview markers"
         )
     if off_events:
         errors.append(
