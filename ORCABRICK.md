@@ -79,14 +79,17 @@ problem**:
 His known-issue list is worth keeping, because these are print-quality limits rather
 than preview cosmetics, and they apply here too:
 
-* Staggering ignores wall slope, so inner walls get raised even where they are visible
-  from above on a sloped surface.
 * With `only_one_wall_first_layer` enabled, the flow correction for the raised inner
   walls is not applied correctly.
 * Adaptive layer height is not supported.
 * First layer height must equal layer height.
 
-Two of his issues do **not** apply to this branch:
+Three of his issues do **not** apply to this branch:
+
+* Staggering ignoring wall slope is handled: `is_covered_from_above()` in
+  `PerimeterGenerator.cpp` clips each candidate wall against `upper_slices` and leaves it
+  at nominal height unless the layer above covers it completely. The topmost layer has no
+  `upper_slices` and is therefore never staggered.
 
 * His multipath handling staggers only the last `ExtrusionMultiPath` of a split run,
   because it runs after the splitting loop. Here the offset is applied to `paths`

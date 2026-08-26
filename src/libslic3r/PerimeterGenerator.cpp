@@ -522,8 +522,20 @@ static ExtrusionEntityCollection traverse_extrusions(const PerimeterGenerator& p
             extrusion_paths_append(paths, *extrusion, role, is_external ? perimeter_generator.ext_perimeter_flow : perimeter_generator.perimeter_flow);
         }
 
-        auto stagger_path = [&perimeter_generator](ExtrusionPath &cur_path) {
+        // OrcaBrick: a wall may only be raised where the layer above covers it. On a sloped or
+        // stepped face the layer above is inset, so a raised wall there would stand proud of the
+        // finished surface and be visible - the first entry on Nanashi's known-issue list. Null
+        // upper_slices means the topmost layer, where by definition nothing covers the wall.
+        auto is_covered_from_above = [&perimeter_generator](const ExtrusionPath &cur_path) {
+            if (perimeter_generator.upper_slices == nullptr)
+                return false;
+            return diff_pl(Polylines{ cur_path.polyline.to_polyline() }, *perimeter_generator.upper_slices).empty();
+        };
+
+        auto stagger_path = [&perimeter_generator, &is_covered_from_above](ExtrusionPath &cur_path) {
             if (perimeter_generator.number_of_layers < 4 || perimeter_generator.layer_id < 0)
+                return;
+            if (!is_covered_from_above(cur_path))
                 return;
             const size_t layer_id = static_cast<size_t>(perimeter_generator.layer_id);
 

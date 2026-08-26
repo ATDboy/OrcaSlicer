@@ -299,6 +299,8 @@ def source_self_test(repository: Path) -> None:
         "src/libslic3r/PerimeterGenerator.cpp": (
             "perimeter_generator.config->staggered_perimeters",
             "cur_path.staggered_z_offset = 0.5",
+            # never raise a wall the layer above does not cover
+            "if (!is_covered_from_above(cur_path))",
         ),
         "src/libslic3r/GCode.cpp": (
             "path.staggered_z_offset * path.height",
