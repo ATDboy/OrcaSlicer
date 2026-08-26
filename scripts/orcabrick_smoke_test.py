@@ -301,6 +301,8 @@ def source_self_test(repository: Path) -> None:
             "cur_path.staggered_z_offset = 0.5",
             # never raise a wall the layer above does not cover
             "if (!is_covered_from_above(cur_path))",
+            # never raise a wall on a layer whose height is not the configured one
+            "const double configured_layer_height",
         ),
         "src/libslic3r/GCode.cpp": (
             "path.staggered_z_offset * path.height",

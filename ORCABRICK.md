@@ -76,27 +76,26 @@ problem**:
   outer-walls as they get treated as separate 'towers'" - the multi-island case that
   `split_staggered_preview_layers()` deliberately declines to split.
 
-His known-issue list is worth keeping, because these are print-quality limits rather
-than preview cosmetics, and they apply here too:
+His known-issue list is worth tracking, because those are print-quality limits rather
+than preview cosmetics. Every entry is now either fixed here or refused up front:
 
-* With `only_one_wall_first_layer` enabled, the flow correction for the raised inner
-  walls is not applied correctly.
-* Adaptive layer height is not supported.
-* First layer height must equal layer height.
+| Nanashi's issue | State here |
+| --- | --- |
+| Staggering ignores wall slope, raising walls that end up visible from above | **Fixed** - `is_covered_from_above()` clips each candidate wall against `upper_slices` and leaves it at nominal height unless the layer above covers it. The topmost layer has no `upper_slices` and is never staggered. |
+| `only_one_wall_first_layer` breaks the flow correction | **Refused** - `ConfigManipulation` forces it off when Bricklaying is enabled. |
+| Adaptive layer height unsupported | **Refused** - a layer whose height differs from the configured `layer_height` is left at nominal, so height-range modifiers and adaptive layers simply do not stagger. |
+| First layer height must equal layer height | **Refused** - `ConfigManipulation` forces them equal. |
+| Several models of different heights confuse the top-layer check | **Not applicable** - `number_of_layers` comes from `layer()->object()->layer_count()`, which is per print object. |
+| Preview groups one layer as several | **Partly addressed** - see Preview behavior above. Multi-island layers still render as one. |
 
-Three of his issues do **not** apply to this branch:
+One thing from his design is kept deliberately: layer 0's odd walls are staggered, lifting
+them half a layer off the bed, and layer 1 carries a 1.5x flow multiplier that compensates
+for it. Upstream #8181 does the same. The two halves only make sense together, so neither
+was changed without a physical print to judge it.
 
-* Staggering ignoring wall slope is handled: `is_covered_from_above()` in
-  `PerimeterGenerator.cpp` clips each candidate wall against `upper_slices` and leaves it
-  at nominal height unless the layer above covers it completely. The topmost layer has no
-  `upper_slices` and is therefore never staggered.
-
-* His multipath handling staggers only the last `ExtrusionMultiPath` of a split run,
-  because it runs after the splitting loop. Here the offset is applied to `paths`
-  before splitting, so every sub-path is staggered.
-* His top-layer check misbehaves with several models of different heights. Here
-  `number_of_layers` comes from `layer()->object()->layer_count()`, which is per print
-  object, so each object gets its own first/last layer handling.
+His multipath handling staggers only the last `ExtrusionMultiPath` of a split run, because
+it runs after the splitting loop. Here the offset is applied to `paths` before splitting, so
+every sub-path is staggered.
 
 ## Theme behavior
 
@@ -109,10 +108,13 @@ the accent in both the plater and Preview; any explicit filament or AMS colour
 wins. Existing profiles and projects usually already store a colour, so they are
 treated as explicit and will not switch to the accent.
 
-Known gaps: the accent has no separate dark-mode variant, web-based panels and
-semantically fixed colours (warnings, errors, modified-value markers) do not
-follow it, and already-generated project thumbnails are not re-rendered.
-Changing the accent requires a restart.
+The release-notes webview takes its link colour from the accent too.
+
+Known gaps: the accent has no separate dark-mode variant, so a very light or very dark
+choice will have poor contrast in one theme; semantically fixed colours (warnings, errors,
+modified-value markers) deliberately do not follow it; remaining web-based panels and
+already-generated project thumbnails are not re-rendered. Changing the accent requires a
+restart.
 
 ## Branding and packaging
 

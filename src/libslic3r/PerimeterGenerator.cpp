@@ -537,6 +537,15 @@ static ExtrusionEntityCollection traverse_extrusions(const PerimeterGenerator& p
                 return;
             if (!is_covered_from_above(cur_path))
                 return;
+            // OrcaBrick: the half-layer offset assumes every layer is the same height, which is why
+            // Nanashi lists adaptive layer height as unsupported. A layer whose height differs from
+            // the configured one comes from adaptive layer height or a height-range modifier, so
+            // leave it at nominal rather than offsetting by half of a height its neighbours do not
+            // share. The Preferences guard already forces the first layer height to match.
+            const double configured_layer_height = perimeter_generator.object_config->layer_height.value;
+            if (perimeter_generator.layer_height > configured_layer_height + EPSILON ||
+                perimeter_generator.layer_height < configured_layer_height - EPSILON)
+                return;
             const size_t layer_id = static_cast<size_t>(perimeter_generator.layer_id);
 
             if (layer_id == 1) {
