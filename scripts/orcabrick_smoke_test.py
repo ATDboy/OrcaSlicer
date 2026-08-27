@@ -333,6 +333,12 @@ def source_self_test(repository: Path) -> None:
         encoding="utf-8"
     )
     preview_sources = processor_header + processor_source + gcode_source
+    if "tail_is_raised" in preview_sources:
+        raise RuntimeError(
+            "split_staggered_preview_layers() must not require the raised walls to be the "
+            "layer's tail: perimeters are emitted before infill, so a nominal extrusion always "
+            "follows them and no layer would ever be split"
+        )
     if "ORCABRICK_LAYER_CHANGE" in preview_sources or "m_preview_layer_id" in preview_sources:
         raise RuntimeError(
             "The G-code marker and the unconditional preview counter are forbidden: they split "

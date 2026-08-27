@@ -33,14 +33,18 @@ Preview shows the staggered walls at their real half-layer Z, and
 layer slider, so each printed layer can appear as two: the nominal walls, then the
 half-layer walls above them.
 
-The split is deliberately conservative, because libvgcode groups vertices into
-layers by runs of equal `layer_id`, keeps one Z per layer (its last extrusion's) and
-binary searches those Zs. A layer is only split when its raised extrusions form a
-**contiguous tail** after at least one nominal extrusion, and the renumbering is
-discarded unless the resulting Z sequence is verified monotonic. Layers that do not
-qualify - typically several islands, where Arachne emits nominal and raised walls
-per island rather than per layer - stay whole and render as before. Non-Bricklaying
-prints have no raised extrusions and are untouched.
+The split point is the layer's first raised extrusion. Everything from there on - the
+raised walls, and the nominal-height infill that follows them - becomes the upper step.
+An earlier version required the raised walls to be the layer's *tail*; that never fired,
+because perimeters are emitted before infill, so a nominal extrusion always follows them.
+
+libvgcode groups vertices into layers by runs of equal `layer_id` and binary searches one
+Z per layer, so a layer's Z is taken as its **highest** extrusion rather than its last
+(`Layers::update()`). Upstream's "last extrusion wins" is arbitrary for any layer holding
+more than one Z, and here it would report the nominal Z for a group whose point is the
+raised walls. The renumbering is still discarded unless the resulting Z sequence verifies
+as monotonic, and a layer with no nominal extrusion before its first raised one is left
+whole. Non-Bricklaying prints have no raised extrusions and are untouched.
 
 Print statistics are unaffected: `MoveVertex::layer_id` feeds the viewer, while time
 estimation uses the separate `TimeBlock::layer_id`.

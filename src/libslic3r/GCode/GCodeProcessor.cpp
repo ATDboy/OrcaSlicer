@@ -2732,10 +2732,12 @@ void GCodeProcessor::split_staggered_preview_layers()
             }
         }
 
-        // Locate the first raised extrusion and check that no nominal one follows it.
-        size_t split          = end;
-        bool   tail_is_raised = true;
-        bool   has_nominal    = false;
+        // Split at the first raised extrusion. Everything from there on - the raised walls, and the
+        // nominal-height infill that follows them - becomes the upper group. Requiring the raised
+        // walls to be the layer's tail does not work: perimeters are emitted before infill, so a
+        // nominal extrusion always follows them and no layer would ever qualify.
+        size_t split       = end;
+        bool   has_nominal = false;
         for (size_t i = begin; i < end; ++i) {
             if (!is_layer_z_source(m_result.moves[i]))
                 continue;
@@ -2745,15 +2747,14 @@ void GCodeProcessor::split_staggered_preview_layers()
             }
             else if (split == end)
                 has_nominal = true;
-            else
-                tail_is_raised = false;
         }
 
-        // Record each group's Z the way libvgcode derives it: from its last extrusion.
+        // Record each group's Z the way libvgcode derives it: its highest extrusion.
         const auto close_group = [&](size_t from, size_t to) {
             PreviewLayer layer;
             for (size_t i = from; i < to; ++i)
-                if (is_layer_z_source(m_result.moves[i])) {
+                if (is_layer_z_source(m_result.moves[i]) &&
+                    (!layer.has_z || m_result.moves[i].position.z() > layer.z)) {
                     layer.z     = m_result.moves[i].position.z();
                     layer.has_z = true;
                 }
@@ -2763,7 +2764,7 @@ void GCodeProcessor::split_staggered_preview_layers()
             ++next_layer_id;
         };
 
-        if (split < end && has_nominal && tail_is_raised) {
+        if (split < end && has_nominal) {
             close_group(begin, split);
             close_group(split, end);
             split_any = true;

@@ -23,6 +23,7 @@ void Layers::update(const PathVertex& vertex, uint32_t vertex_id)
         // this code assumes that gcode paths are sent sequentially, one layer after the other
         assert(vertex.layer_id == static_cast<uint32_t>(m_items.size()));
         Item& item = m_items.emplace_back(Item());
+        // OrcaBrick: highest extrusion, not the last one - see the else branch below.
         if (vertex.type == EMoveType::Extrude && vertex.role != EGCodeExtrusionRole::Custom)
             item.z = vertex.position[2];
         item.range.set(vertex_id, vertex_id);
@@ -31,7 +32,13 @@ void Layers::update(const PathVertex& vertex, uint32_t vertex_id)
     }
     else {
         Item& item = m_items.back();
-        if (vertex.type == EMoveType::Extrude && vertex.role != EGCodeExtrusionRole::Custom && item.z != vertex.position[2])
+        // OrcaBrick: take the layer's highest extrusion rather than its last. Upstream's "last
+        // extrusion wins" is arbitrary whenever a layer contains more than one Z - with Bricklaying
+        // a layer ends on nominal-height infill, so the last extrusion would report the nominal Z
+        // for a group whose whole point is the raised walls, and the Z sequence handed to
+        // get_layer_id_at()'s binary search below would stop increasing.
+        if (vertex.type == EMoveType::Extrude && vertex.role != EGCodeExtrusionRole::Custom &&
+            vertex.position[2] > item.z)
             item.z = vertex.position[2];
         item.range.set_max(vertex_id);
         for (size_t i = 0; i < TIME_MODES_COUNT; ++i) {
