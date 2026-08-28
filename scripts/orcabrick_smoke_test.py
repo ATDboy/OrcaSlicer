@@ -291,6 +291,18 @@ def source_self_test(repository: Path) -> None:
     ):
         raise RuntimeError("Bricklaying proof must run before installer creation")
 
+    # Every OrcaBrick build must ship an installable for Windows *and* Linux.
+    orcabrick_workflow = (
+        repository / ".github" / "workflows" / "orcabrick_windows.yml"
+    ).read_text(encoding="utf-8")
+    for job, runner in (("build_windows_x64", "windows-latest"),
+                        ("build_linux_x86_64", "ubuntu-24.04")):
+        if job not in orcabrick_workflow or runner not in orcabrick_workflow:
+            raise RuntimeError(
+                f"OrcaBrick workflow no longer builds {job} on {runner}; "
+                "both Windows and Linux installables are required"
+            )
+
     required_source_wiring = {
         "src/libslic3r/PrintConfig.cpp": (
             'this->add("staggered_perimeters", coBool)',

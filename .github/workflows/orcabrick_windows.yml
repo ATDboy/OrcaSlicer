@@ -1,4 +1,4 @@
-name: Build OrcaBrick Windows
+name: Build OrcaBrick
 
 on:
   push:
@@ -49,6 +49,20 @@ jobs:
     with:
       os: windows-latest
       arch: x64
+      build-deps-only: false
+      force-build: false
+    secrets: inherit
+
+  # Linux ships as an AppImage - the equivalent deliverable to the Windows installer.
+  # amd64 passes an empty arch, matching build_all.yml, so it reuses the existing
+  # 'linux-clang' dependency cache rather than starting a second one.
+  build_linux_x86_64:
+    name: Build Linux x86_64 AppImage
+    needs: validate_orcabrick
+    uses: ./.github/workflows/build_check_cache.yml
+    with:
+      os: ubuntu-24.04
+      arch: ''
       build-deps-only: false
       force-build: false
     secrets: inherit

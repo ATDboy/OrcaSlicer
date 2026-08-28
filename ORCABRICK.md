@@ -124,8 +124,25 @@ restart.
 
 The visible application and installer product name is **OrcaBrick**. Internal
 technical build metadata remains available for update/build diagnostics but is
-not appended to the visible product name. Windows installers use the stable
-filename `OrcaBrick_Setup_x64.exe` or `OrcaBrick_Setup_arm64.exe`.
+not appended to the visible product name.
+
+Every build produces installables for **both Windows and Linux**:
+
+* Windows: `OrcaBrick_Setup_x64.exe` (or `_arm64`), artifact
+  `OrcaBrick_Windows_Setup_x64`.
+* Linux: an AppImage, artifact `OrcaSlicer_Linux_ubuntu_2404_V2.4.2+OrcaBrick<n>`
+  containing `OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.4.2+OrcaBrick<n>.AppImage`.
+  The filename keeps the `OrcaSlicer` prefix because it is derived from
+  `SLIC3R_APP_KEY`, which is deliberately unchanged so existing printer, filament
+  and process profiles keep working. The application inside is branded OrcaBrick.
+  Download it, `chmod +x` it, and run it - no installation step is needed.
+
+`scripts/orcabrick_smoke_test.py` fails the build if either platform's job is
+removed, so both deliverables stay guaranteed.
+
+The workflow file is still named `orcabrick_windows.yml` even though it now builds
+both; renaming it would have to be done together with the `paths` filter that
+references it.
 
 ## Build gate
 
