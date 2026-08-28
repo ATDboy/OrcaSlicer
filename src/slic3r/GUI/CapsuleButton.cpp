@@ -113,8 +113,8 @@ void CapsuleButton::UpdateStatus()
     if (m_selected) {
         m_btn->SetBitmap(tag_on_bmp);
         m_label->SetForegroundColour(TextSelectColor);
-        m_label->SetBackgroundColour(BgSelectColor);
-        m_btn->SetBackgroundColour(BgSelectColor);
+        m_label->SetBackgroundColour(StateColor::darkModeColorFor(BgSelectColor));
+        m_btn->SetBackgroundColour(StateColor::darkModeColorFor(BgSelectColor));
     } else {
         m_btn->SetBitmap(tag_off_bmp);
         m_label->SetForegroundColour(TextNormalColor);

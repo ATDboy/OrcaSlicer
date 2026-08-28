@@ -205,10 +205,11 @@ void FilamentMapBtnPanel::OnPaint(wxPaintEvent &event)
 void FilamentMapBtnPanel::UpdateStatus()
 {
     if (m_selected) {
-        m_btn->SetBackgroundColour(BgSelectColor);
-        m_label->SetBackgroundColour(BgSelectColor);
-        m_detail->SetBackgroundColour(BgSelectColor);
-        m_disable_tip->SetBackgroundColour(BgSelectColor);
+        const wxColour selected_bg = StateColor::darkModeColorFor(BgSelectColor);
+        m_btn->SetBackgroundColour(selected_bg);
+        m_label->SetBackgroundColour(selected_bg);
+        m_detail->SetBackgroundColour(selected_bg);
+        m_disable_tip->SetBackgroundColour(selected_bg);
     }
     else {
         m_btn->SetBackgroundColour(BgNormalColor);

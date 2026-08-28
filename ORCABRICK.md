@@ -108,17 +108,34 @@ SVG icons and the ImGui surfaces of the 3D view (gizmos, G-code legend, slider
 text). Orange back/reset controls intentionally remain orange for contrast.
 
 An unset (empty) model/filament colour is the "automatic" sentinel and follows
-the accent in both the plater and Preview; any explicit filament or AMS colour
-wins. Existing profiles and projects usually already store a colour, so they are
-treated as explicit and will not switch to the accent.
+the **Model colour** preference in both the plater and Preview; any explicit
+filament or AMS colour wins. Existing profiles and projects usually already store
+a colour, so they are treated as explicit and keep it.
+
+**Model colour** (Preferences) is the colour those automatic models are painted.
+It is a separate picker from the accent, with a *Follow accent colour* tick that
+clears it; clearing it stores an empty `model_color` key, which `StateColor`
+reads back as "follow the accent". Changing either picker re-resolves the volume
+colours on the plate and in the assembly view straight away, without a restart.
+
+Widgets reach the accent through `StateColor`, which substitutes the accent for
+the known Orca tokens whenever a colour is resolved. Code that paints a token
+straight onto a `wxDC` or hands it to `SetForegroundColour`/`SetBackgroundColour`
+bypasses that, so those sites call `StateColor::darkModeColorFor()` explicitly -
+the selected-tab underline, the task and machine list pages, the switch buttons,
+notification hyperlinks, the 3D selection rectangle and the rest. Wrapping at the
+point of use, rather than at a file-scope `static const wxColour`, matters:
+statics are initialised before the accent is read from the config, so a wrapped
+static would freeze the built-in default. `scripts/orcabrick_smoke_test.py` fails
+the build if any of those sites reverts to a raw literal.
 
 The release-notes webview takes its link colour from the accent too.
 
 Known gaps: the accent has no separate dark-mode variant, so a very light or very dark
 choice will have poor contrast in one theme; semantically fixed colours (warnings, errors,
 modified-value markers) deliberately do not follow it; remaining web-based panels and
-already-generated project thumbnails are not re-rendered. Changing the accent requires a
-restart.
+already-generated project thumbnails are not re-rendered. SVG icons are recoloured
+through the bitmap cache at load time, so icon colours still need a restart.
 
 ## Branding and packaging
 

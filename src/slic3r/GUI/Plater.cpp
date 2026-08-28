@@ -10521,6 +10521,12 @@ void Plater::priv::on_change_color_mode(SimpleEvent& evt) {
     assemble_view->get_canvas3d()->on_change_color_mode(m_is_dark);
     if (m_send_to_sdcard_dlg) m_send_to_sdcard_dlg->on_change_color_mode();
 
+    // The accent and model colours paint the volumes too, not just the window chrome,
+    // so a colour change has to re-resolve them or the plate keeps the old colour
+    // until the next restart.
+    view3D->get_canvas3d()->update_volumes_colors_by_extruder();
+    assemble_view->get_canvas3d()->update_volumes_colors_by_extruder();
+
     apply_color_mode();
 }
 
@@ -16899,10 +16905,10 @@ std::vector<std::string> Plater::get_extruder_colors_from_plater_config(const GC
         filament_colors = (config->option<ConfigOptionStrings>("filament_colour"))->values;
         // OrcaBrick: resolve the "automatic" (empty) sentinel here, the single GUI-side source
         // for both Preview and the layer slider. Otherwise GCodeProcessor substitutes its own
-        // #FF8000 fallback and they disagree with the plater, which paints it with the accent.
+        // #FF8000 fallback and they disagree with the plater, which paints it with the model colour.
         for (std::string &color : filament_colors)
             if (color.empty())
-                color = StateColor::AccentColor().GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
+                color = StateColor::ModelColor().GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
         return filament_colors;
     }
 }

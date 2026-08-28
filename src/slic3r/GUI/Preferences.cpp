@@ -944,7 +944,9 @@ wxBoxSizer* PreferencesDialog::create_item_darkmode(wxString title,wxString tool
 
 wxBoxSizer* PreferencesDialog::create_item_accent_color()
 {
-    const wxString tip = _L("Choose the accent colour used throughout buttons, highlights, controls, icons, logos and other themed artwork. Restart OrcaBrick after changing it.");
+    const wxString tip = _L("Choose the accent colour used throughout buttons, highlights, controls, icons, "
+                            "logos and other themed artwork. The 3D views follow it immediately; icons are "
+                            "recoloured while they load, so restart OrcaBrick to change those.");
     wxBoxSizer *sizer = create_item_label(_L("Accent colour"), tip);
     wxColour color(from_u8(app_config->get("accent_color")));
     if (!color.IsOk())
@@ -955,8 +957,52 @@ wxBoxSizer* PreferencesDialog::create_item_accent_color()
     picker->Bind(wxEVT_COLOURPICKER_CHANGED, [this, picker](wxColourPickerEvent &e) {
         app_config->set("accent_color", into_u8(picker->GetColour().GetAsString(wxC2S_HTML_SYNTAX)));
         app_config->save();
+        wxGetApp().init_label_colours();
+        SimpleEvent evt = SimpleEvent(EVT_GLCANVAS_COLOR_MODE_CHANGED);
+        wxPostEvent(wxGetApp().plater(), evt);
         e.Skip();
     });
+    return sizer;
+}
+
+wxBoxSizer* PreferencesDialog::create_item_model_color()
+{
+    const wxString tip = _L("Colour of a model on the plate whose filament colour is set to automatic. "
+                            "Tick \"Follow accent colour\" to keep it in step with the accent colour instead. "
+                            "A filament with an explicit colour always keeps that colour.");
+    wxBoxSizer *sizer = create_item_label(_L("Model colour"), tip);
+
+    const wxColour configured(from_u8(app_config->get("model_color")));
+    auto *follow = new ::CheckBox(m_parent);
+    follow->SetValue(!configured.IsOk());
+    follow->SetToolTip(_L("Follow accent colour"));
+    auto *picker = new wxColourPickerCtrl(m_parent, wxID_ANY,
+                                          configured.IsOk() ? configured : StateColor::AccentColor());
+    picker->SetToolTip(tip);
+    picker->Enable(configured.IsOk());
+
+    // One writer for both controls: ticking the box clears the key, which StateColor
+    // reads back as "follow the accent".
+    auto store = [this, follow, picker]() {
+        const bool follows = follow->GetValue();
+        picker->Enable(!follows);
+        app_config->set("model_color", follows ? "" : into_u8(picker->GetColour().GetAsString(wxC2S_HTML_SYNTAX)));
+        app_config->save();
+        wxGetApp().init_label_colours();
+        SimpleEvent evt = SimpleEvent(EVT_GLCANVAS_COLOR_MODE_CHANGED);
+        wxPostEvent(wxGetApp().plater(), evt);
+    };
+    follow->Bind(wxEVT_TOGGLEBUTTON, [store](wxCommandEvent &e) { store(); e.Skip(); });
+    picker->Bind(wxEVT_COLOURPICKER_CHANGED, [store](wxColourPickerEvent &e) { store(); e.Skip(); });
+
+    auto *follow_title = new wxStaticText(m_parent, wxID_ANY, _L("Follow accent colour"));
+    follow_title->SetForegroundColour(DESIGN_GRAY900_COLOR);
+    follow_title->SetFont(::Label::Body_14);
+    follow_title->SetToolTip(tip);
+
+    sizer->Add(picker, 0, wxALIGN_CENTER);
+    sizer->Add(follow, 0, wxALIGN_CENTER | wxLEFT, FromDIP(12));
+    sizer->Add(follow_title, 0, wxALIGN_CENTER | wxLEFT, FromDIP(6));
     return sizer;
 }
 
@@ -1571,6 +1617,8 @@ void PreferencesDialog::create_items()
 #endif
 
     g_sizer->Add(create_item_accent_color());
+
+    g_sizer->Add(create_item_model_color());
 
     auto item_single_instance  = create_item_checkbox(_L("Allow only one OrcaSlicer instance"),
     #if __APPLE__

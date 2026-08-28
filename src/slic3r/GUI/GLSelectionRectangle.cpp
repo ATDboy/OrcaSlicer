@@ -5,6 +5,7 @@
 #include "GLCanvas3D.hpp"
 #include "GUI_App.hpp"
 #include "Plater.hpp"
+#include "Widgets/StateColor.hpp"
 #include <igl/project.h>
 
 #include <glad/gl.h>
@@ -172,7 +173,10 @@ namespace GUI {
             }
 #endif // !SLIC3R_OPENGL_ES
 
-            m_rectangle.set_color(ColorRGBA::ORCA()); // ORCA: use orca color for selection rectangle
+            // ORCA: use the accent color for the selection rectangle. ColorRGBA::ORCA() is
+            // only the built-in default; the user can pick a different accent in Preferences.
+            const wxColour accent = StateColor::AccentColor();
+            m_rectangle.set_color({accent.Red() / 255.0f, accent.Green() / 255.0f, accent.Blue() / 255.0f, 1.0f});
             m_rectangle.render();
             shader->stop_using();
         }

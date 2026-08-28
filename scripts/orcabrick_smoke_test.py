@@ -334,7 +334,42 @@ def source_self_test(repository: Path) -> None:
             'append_single_option_line("staggered_perimeters")',
             'append_single_option_line("staggered_perimeter_flow_ratio")',
         ),
+        # The themed model colour, and the two places that resolve an automatic filament colour.
+        "src/slic3r/GUI/Widgets/StateColor.cpp": (
+            "wxColour StateColor::ModelColor()",
+        ),
+        "src/slic3r/GUI/Preferences.cpp": (
+            "PreferencesDialog::create_item_model_color()",
+        ),
+        "src/slic3r/GUI/3DScene.cpp": (
+            "const wxColour accent = StateColor::ModelColor();",
+        ),
     }
+
+    # Theme tokens that must never be painted straight onto a device context or a
+    # window: those bypass StateColor and so ignore the accent colour entirely.
+    unthemed_literals = {
+        "src/slic3r/GUI/Widgets/TabCtrl.cpp": ('wxColour c("#009688")',),
+        "src/slic3r/GUI/MultiTaskManagerPage.cpp": (
+            "dc.SetPen(wxPen(wxColour(0, 150, 136)))",
+            "dc.SetTextForeground(wxColour(0, 150, 136))",
+        ),
+        "src/slic3r/GUI/MultiMachineManagerPage.cpp": (
+            "dc.SetPen(wxPen(wxColour(0, 150, 136)))",
+        ),
+        "src/slic3r/GUI/Widgets/SwitchButton.cpp": (
+            "dc.SetBrush(wxBrush(wxColour(0, 150, 136)))",
+        ),
+        "src/slic3r/GUI/GLSelectionRectangle.cpp": ("set_color(ColorRGBA::ORCA())",),
+    }
+    for relative_path, literals in unthemed_literals.items():
+        source = (repository / relative_path).read_text(encoding="utf-8")
+        present = [literal for literal in literals if literal in source]
+        if present:
+            raise RuntimeError(
+                f"{relative_path} paints a theme token directly, so it ignores the accent "
+                f"colour: {', '.join(present)}"
+            )
     processor_header = (
         repository / "src" / "libslic3r" / "GCode" / "GCodeProcessor.hpp"
     ).read_text(encoding="utf-8")

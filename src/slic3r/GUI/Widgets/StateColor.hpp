@@ -33,6 +33,10 @@ public:
     static void SetDarkMode(bool dark);
     static void SetAccentColor(const wxColour &color);
     static wxColour AccentColor();
+    // Colour of a model on the plate whose filament colour is "automatic".
+    // An invalid colour means "follow the accent colour".
+    static void SetModelColor(const wxColour &color);
+    static wxColour ModelColor();
     static wxColour AccentHoverColor();
     static wxColour AccentLightColor();
 

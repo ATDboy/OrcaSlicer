@@ -1528,7 +1528,7 @@ void GLVolumeCollection::update_colors_by_extruder(const DynamicPrintConfig *con
             // Empty is the automatic sentinel. Any explicit filament or AMS colour,
             // including the former Orca default orange, must remain exactly as chosen.
             if (fil_color.empty()) {
-                const wxColour accent = StateColor::AccentColor();
+                const wxColour accent = StateColor::ModelColor();
                 rgba = ColorRGBA(
                     accent.Red() / 255.0f,
                     accent.Green() / 255.0f,

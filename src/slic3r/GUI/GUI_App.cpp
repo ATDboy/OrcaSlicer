@@ -3733,6 +3733,8 @@ void GUI_App::init_label_colours()
 {
     wxColour accent(from_u8(app_config->get("accent_color")));
     StateColor::SetAccentColor(accent.IsOk() ? accent : wxColour("#00E5FF"));
+    // An unset model colour stays invalid, which StateColor reads as "follow the accent".
+    StateColor::SetModelColor(wxColour(from_u8(app_config->get("model_color"))));
     bool is_dark_mode = dark_mode();
     m_color_label_modified = is_dark_mode ? wxColour("#F1754E") : wxColour("#F1754E");
     m_color_label_sys      = is_dark_mode ? wxColour("#B2B3B5") : wxColour("#363636");

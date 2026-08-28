@@ -1,13 +1,16 @@
 #include "HyperLink.hpp"
 #include "Label.hpp"
+#include "StateColor.hpp"
 
 namespace Slic3r { namespace GUI {
 
 HyperLink::HyperLink(wxWindow* parent, const wxString& label, const wxString& url, long style)
     : wxStaticText(parent, wxID_ANY, label)
     , m_url(url)
-    , m_normalColor(wxColour("#009687")) // used slightly different color otherwise automatically uses ColorForDark that not visible enough
-    , m_hoverColor(wxColour("#26A69A"))
+    // The accent colour is already resolved for the active theme, so it needs no
+    // ColorForDark dodge the way the old hard-coded #009687 did.
+    , m_normalColor(StateColor::AccentColor())
+    , m_hoverColor(StateColor::AccentHoverColor())
 {
     SetForegroundColour(m_normalColor);
     HyperLink::SetFont(Label::Head_14);

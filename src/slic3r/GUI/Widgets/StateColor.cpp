@@ -3,6 +3,7 @@
 
 static bool gDarkMode = false;
 static wxColour gAccentColor("#00E5FF");
+static wxColour gModelColor; // invalid until set: follow the accent colour
 
 static bool operator<(wxColour const &l, wxColour const &r) { return l.GetRGBA() < r.GetRGBA(); }
 
@@ -195,6 +196,11 @@ void StateColor::SetAccentColor(const wxColour &color)
 }
 
 wxColour StateColor::AccentColor() { return gAccentColor; }
+
+void StateColor::SetModelColor(const wxColour &color) { gModelColor = color; }
+
+wxColour StateColor::ModelColor() { return gModelColor.IsOk() ? gModelColor : gAccentColor; }
+
 wxColour StateColor::AccentHoverColor() { return LightenDarkenColor(gAccentColor, gDarkMode ? -10 : -15); }
 
 wxColour StateColor::AccentLightColor()
