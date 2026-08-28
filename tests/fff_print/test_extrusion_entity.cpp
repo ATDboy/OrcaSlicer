@@ -87,35 +87,40 @@ SCENARIO("ExtrusionEntityCollection: Polygon flattening", "[ExtrusionEntity]") {
 
 SCENARIO("ExtrusionPath preserves Bricklaying metadata", "[ExtrusionEntity][Bricklaying]")
 {
-    ExtrusionPath source {erInternalPerimeter, 1.0, 0.45f, 0.20f};
-    source.z_offset            = 0.5f;
+    ExtrusionPath source {erPerimeter, 1.0, 0.45f, 0.20f};
+    // staggered_z_offset is the Bricklaying offset. It is deliberately separate from
+    // z_offset, which sloped and scarf paths use, so both have to survive a copy.
+    source.staggered_z_offset   = 0.5f;
+    source.z_offset             = 0.25f;
     source.extrusion_multiplier = 1.5f;
-    source.polyline.append(Point3(0, 0, 0));
-    source.polyline.append(Point3(scale_(10.0), 0, 0));
+    source.polyline.append(Point3(0.0, 0.0, 0.0));
+    source.polyline.append(Point3(scale_(10.0), 0.0, 0.0));
+
+    const auto check_preserved = [](const ExtrusionPath &path) {
+        CHECK(path.staggered_z_offset == Catch::Approx(0.5f));
+        CHECK(path.z_offset == Catch::Approx(0.25f));
+        CHECK(path.extrusion_multiplier == Catch::Approx(1.5f));
+    };
 
     SECTION("copy construction") {
         const ExtrusionPath copy(source);
-        CHECK(copy.z_offset == Catch::Approx(0.5f));
-        CHECK(copy.extrusion_multiplier == Catch::Approx(1.5f));
+        check_preserved(copy);
     }
 
     SECTION("move construction") {
         const ExtrusionPath moved(std::move(source));
-        CHECK(moved.z_offset == Catch::Approx(0.5f));
-        CHECK(moved.extrusion_multiplier == Catch::Approx(1.5f));
+        check_preserved(moved);
     }
 
     SECTION("copy assignment") {
         ExtrusionPath copy;
         copy = source;
-        CHECK(copy.z_offset == Catch::Approx(0.5f));
-        CHECK(copy.extrusion_multiplier == Catch::Approx(1.5f));
+        check_preserved(copy);
     }
 
     SECTION("move assignment") {
         ExtrusionPath moved;
         moved = std::move(source);
-        CHECK(moved.z_offset == Catch::Approx(0.5f));
-        CHECK(moved.extrusion_multiplier == Catch::Approx(1.5f));
+        check_preserved(moved);
     }
 }

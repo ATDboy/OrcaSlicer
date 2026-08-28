@@ -157,6 +157,12 @@ Every build produces installables for **both Windows and Linux**:
 `scripts/orcabrick_smoke_test.py` fails the build if either platform's job is
 removed, so both deliverables stay guaranteed.
 
+Adding the Linux job also put `tests/` under CI for the first time: the Windows
+leg never compiles them. That immediately exposed a Bricklaying unit test which
+had never compiled, because it named an `ExtrusionRole` that does not exist. The
+smoke test now checks the roles that test uses against the enum, so the same
+mistake fails in seconds rather than forty minutes into a build.
+
 The workflow file is still named `orcabrick_windows.yml` even though it now builds
 both; renaming it would have to be done together with the `paths` filter that
 references it.

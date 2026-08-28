@@ -370,6 +370,34 @@ def source_self_test(repository: Path) -> None:
                 f"{relative_path} paints a theme token directly, so it ignores the accent "
                 f"colour: {', '.join(present)}"
             )
+
+    # The Bricklaying unit test shipped for weeks referencing an ExtrusionRole that does
+    # not exist, because no CI leg compiled tests/ until the Linux job was added. Linux
+    # now gates it, and this catches the same mistake before a 40-minute build does.
+    extrusion_roles = set(
+        re.findall(
+            r"^\s*(er[A-Za-z]+),",
+            (repository / "src" / "libslic3r" / "ExtrusionEntity.hpp").read_text(
+                encoding="utf-8"
+            ),
+            re.M,
+        )
+    )
+    extrusion_test = repository / "tests" / "fff_print" / "test_extrusion_entity.cpp"
+    unknown_roles = sorted(
+        set(re.findall(r"\ber[A-Z][A-Za-z]*\b", extrusion_test.read_text(encoding="utf-8")))
+        - extrusion_roles
+    )
+    if unknown_roles:
+        raise RuntimeError(
+            f"{extrusion_test.name} uses ExtrusionRole values that do not exist in "
+            f"ExtrusionEntity.hpp: {', '.join(unknown_roles)}"
+        )
+    if "staggered_z_offset" not in extrusion_test.read_text(encoding="utf-8"):
+        raise RuntimeError(
+            "The Bricklaying metadata test must cover staggered_z_offset, the field the "
+            "feature actually uses; z_offset alone belongs to sloped and scarf paths"
+        )
     processor_header = (
         repository / "src" / "libslic3r" / "GCode" / "GCodeProcessor.hpp"
     ).read_text(encoding="utf-8")
