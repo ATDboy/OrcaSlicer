@@ -30,21 +30,42 @@ wall extrusion when ON, and real XY+E motion after each staggered Z move.
 
 Preview shows the staggered walls at their real half-layer Z, and
 `GCodeProcessor::split_staggered_preview_layers()` gives them their own step in the
-layer slider, so each printed layer can appear as two: the nominal walls, then the
-half-layer walls above them.
+layer slider, so each printed layer appears as two: the layer without its raised walls,
+then the same layer with them.
 
-The split point is the layer's first raised extrusion. Everything from there on - the
-raised walls, and the nominal-height infill that follows them - becomes the upper step.
-An earlier version required the raised walls to be the layer's *tail*; that never fired,
-because perimeters are emitted before infill, so a nominal extrusion always follows them.
+**Why the split cannot be positional.** libvgcode groups vertices into layers by runs of
+equal `layer_id`, so a layer is a contiguous run of the print-order vertex buffer. The
+raised walls are not a contiguous run: Arachne emits walls inset by inset, raising the odd
+ones, and the infill follows at nominal Z. Nominal and raised extrusions are therefore
+interleaved, and **no split point separates them**. Two earlier attempts failed on exactly
+this. Requiring the raised walls to be the layer's tail never fired at all, because a
+nominal extrusion always follows them. Splitting at the first raised extrusion did fire -
+it is what produced twice the slider steps - but its upper step carried the raised walls
+*together with* all the nominal infill and the remaining nominal walls, so no step ever
+showed the raised walls on their own and the slider looked unchanged.
 
-libvgcode groups vertices into layers by runs of equal `layer_id` and binary searches one
-Z per layer, so a layer's Z is taken as its **highest** extrusion rather than its last
-(`Layers::update()`). Upstream's "last extrusion wins" is arbitrary for any layer holding
-more than one Z, and here it would report the nominal Z for a group whose point is the
-raised walls. The renumbering is still discarded unless the resulting Z sequence verifies
-as monotonic, and a layer with no nominal extrusion before its first raised one is left
-whole. Non-Bricklaying prints have no raised extrusions and are untouched.
+**What works instead.** Both steps cover the same moves and differ only in the Z they
+declare: the lower one states the layer's nominal Z, the upper one its raised Z. The upper
+step owns the layer's final move so that selecting it widens the vertex range back over
+the whole layer. `ViewerImpl::update_enabled_entities()` then drops any extrusion above the
+topmost visible layer's Z, which is what leaves the raised walls out of the lower step -
+the render path filters per vertex, so an arbitrary subset is expressible even though a
+layer's *range* is not.
+
+Those Zs cannot be read back off the vertices, so they are stated:
+`GCodeProcessorResult::preview_layer_zs` -> `GCodeInputData::layer_zs` -> `Layers::set_zs()`.
+Both the cutoff and the stated Zs are gated on `Layers::has_explicit_zs()`, so every
+non-Bricklaying print renders exactly as before. That gate matters: a derived layer Z is
+only the highest extrusion seen in a layer, which sequential printing makes meaningless,
+because the second object restarts near the bed while the first still towers over it.
+
+A layer is only split when it extrudes at exactly two Zs and nothing in between. A scarf or
+sloped seam ramps through a continuum and is left whole, as is spiral vase. The renumbering
+is discarded unless the resulting Z sequence verifies as monotonic.
+
+Known cost: the upper step owns a single move, so its entry in the per-layer *time* figures
+is near zero. The layer-time view mode therefore reads oddly for Bricklaying prints. The
+layer slider, which is what the split exists for, is correct.
 
 Print statistics are unaffected: `MoveVertex::layer_id` feeds the viewer, while time
 estimation uses the separate `TimeBlock::layer_id`.

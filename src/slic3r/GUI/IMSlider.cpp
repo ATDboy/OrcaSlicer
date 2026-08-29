@@ -29,7 +29,13 @@ static const ImU32 BACKGROUND_COLOR_DARK  = IM_COL32(65, 65, 71, 255);
 static const ImU32 BACKGROUND_COLOR_LIGHT = IM_COL32(255, 255, 255, 255);
 static const ImU32 GROOVE_COLOR_DARK      = IM_COL32(45, 45, 49, 255);
 static const ImU32 GROOVE_COLOR_LIGHT     = IM_COL32(206, 206, 206, 255);
-static const ImU32 BRAND_COLOR            = IM_COL32(0, 150, 136, 255);
+// Resolved on each use, not stored: a file-scope static would be initialised before the accent
+// colour is read from the config and would freeze the built-in teal.
+static ImU32 brand_color()
+{
+    const wxColour accent = StateColor::AccentColor();
+    return IM_COL32(accent.Red(), accent.Green(), accent.Blue(), 255);
+}
 
 static int m_tick_value = -1;
 static ImVec4 m_tick_rect;
@@ -503,7 +509,7 @@ bool IMSlider::horizontal_slider(const char* str_id, int* value, int v_min, int 
     const float  text_start_offset   = 8.0f * m_scale;
     const ImVec2 text_padding        = ImVec2(5.0f, 2.0f) * m_scale;
 
-    const ImU32 handle_clr = BRAND_COLOR;
+    const ImU32 handle_clr = brand_color();
     const ImU32 handle_border_clr = m_is_dark ? BACKGROUND_COLOR_DARK : BACKGROUND_COLOR_LIGHT;
     const wxColour label_bg = StateColor::darkModeColorFor(wxGetApp().get_window_default_clr());
     const wxColour label_border = StateColor::darkModeColorFor(wxColour("#CECECE"));
@@ -512,7 +518,7 @@ bool IMSlider::horizontal_slider(const char* str_id, int* value, int v_min, int 
     const ImU32 label_bg_clr = IM_COL32(label_bg.Red(), label_bg.Green(), label_bg.Blue(), 238);
     const ImU32 label_border_clr = IM_COL32(label_border.Red(), label_border.Green(), label_border.Blue(), 255);
     const ImU32 label_shadow_clr = m_is_dark ? IM_COL32(0, 0, 0, 84) : IM_COL32(0, 0, 0, 38);
-    ImVec4 range_fill = ImGui::ColorConvertU32ToFloat4(BRAND_COLOR);
+    ImVec4 range_fill = ImGui::ColorConvertU32ToFloat4(brand_color());
     range_fill.w = (m_is_dark ? 210.0f : 190.0f) / 255.0f;
     const ImU32 range_fill_clr = ImGui::GetColorU32(range_fill);
     const ImU32 rail_inner_clr = IM_COL32(rail_inner_bg.Red(), rail_inner_bg.Green(), rail_inner_bg.Blue(), 255);
@@ -898,7 +904,7 @@ bool IMSlider::vertical_slider(const char* str_id, int* higher_value, int* lower
     ImVec2 text_size;
 
     const ImU32 white_bg = m_is_dark ? BACKGROUND_COLOR_DARK : BACKGROUND_COLOR_LIGHT;
-    const ImU32 handle_clr = BRAND_COLOR;
+    const ImU32 handle_clr = brand_color();
     const ImU32 handle_border_clr = m_is_dark ? BACKGROUND_COLOR_DARK : BACKGROUND_COLOR_LIGHT;
     const wxColour label_bg = StateColor::darkModeColorFor(wxGetApp().get_window_default_clr());
     const wxColour label_bg_active = StateColor::darkModeColorFor(wxColour("#E5F0EE"));
@@ -909,7 +915,7 @@ bool IMSlider::vertical_slider(const char* str_id, int* higher_value, int* lower
     const ImU32 label_bg_active_clr = IM_COL32(label_bg_active.Red(), label_bg_active.Green(), label_bg_active.Blue(), 246);
     const ImU32 label_border_clr = IM_COL32(label_border.Red(), label_border.Green(), label_border.Blue(), 255);
     const ImU32 label_shadow_clr = m_is_dark ? IM_COL32(0, 0, 0, 84) : IM_COL32(0, 0, 0, 38);
-    ImVec4 range_fill = ImGui::ColorConvertU32ToFloat4(BRAND_COLOR);
+    ImVec4 range_fill = ImGui::ColorConvertU32ToFloat4(brand_color());
     range_fill.w = (m_is_dark ? 210.0f : 190.0f) / 255.0f;
     const ImU32 range_fill_clr = ImGui::GetColorU32(range_fill);
     const ImU32 rail_inner_clr = IM_COL32(rail_inner_bg.Red(), rail_inner_bg.Green(), rail_inner_bg.Blue(), 255);

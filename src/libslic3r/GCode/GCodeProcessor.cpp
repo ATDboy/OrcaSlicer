@@ -1653,6 +1653,7 @@ void GCodeProcessorResult::reset() {
     lock();
 
     moves.clear();
+    preview_layer_zs.clear();
     lines_ends.clear();
     printable_area = Pointfs();
     //BBS: add bed exclude area
@@ -2699,7 +2700,8 @@ void GCodeProcessor::split_staggered_preview_layers()
 {
     static constexpr float STAGGER_EPSILON = 0.0001f;
 
-    if (m_result.moves.empty())
+    m_result.preview_layer_zs.clear();
+    if (m_result.moves.empty() || m_result.spiral_vase_mode)
         return;
 
     // Mirrors the vertices libvgcode's Layers::update() takes a layer's Z from.
@@ -2707,12 +2709,12 @@ void GCodeProcessor::split_staggered_preview_layers()
         return move.type == EMoveType::Extrude && move.extrusion_role != erCustom;
     };
 
-    struct PreviewLayer { float z{ 0.0f }; bool has_z{ false }; };
-
     std::vector<unsigned int> new_layer_ids(m_result.moves.size(), 0);
-    std::vector<PreviewLayer> preview_layers;
+    std::vector<float>        layer_zs;
     unsigned int              next_layer_id = 0;
     bool                      split_any     = false;
+    float                     last_z        = 0.0f;
+    bool                      has_last_z    = false;
 
     for (size_t begin = 0; begin < m_result.moves.size();) {
         const unsigned int print_layer_id = m_result.moves[begin].layer_id;
@@ -2720,57 +2722,72 @@ void GCodeProcessor::split_staggered_preview_layers()
         while (end < m_result.moves.size() && m_result.moves[end].layer_id == print_layer_id)
             ++end;
 
-        float nominal_z     = 0.0f;
-        bool  has_nominal_z = false;
+        float nominal_z = 0.0f;
+        float raised_z  = 0.0f;
+        bool  has_z     = false;
         for (size_t i = begin; i < end; ++i) {
             if (!is_layer_z_source(m_result.moves[i]))
                 continue;
             const float z = m_result.moves[i].position.z();
-            if (!has_nominal_z || z < nominal_z) {
-                nominal_z     = z;
-                has_nominal_z = true;
+            if (!has_z) {
+                nominal_z = raised_z = z;
+                has_z     = true;
+            }
+            else if (z < nominal_z)
+                nominal_z = z;
+            else if (z > raised_z)
+                raised_z = z;
+        }
+
+        // Bricklaying puts the raised walls at exactly one Z above the nominal one, so a
+        // Bricklaying layer extrudes at two Zs and nothing in between. A scarf or sloped seam
+        // instead ramps through a continuum, and a layer carrying one must not be split.
+        bool has_intermediate = false;
+        if (has_z && raised_z > nominal_z + STAGGER_EPSILON) {
+            for (size_t i = begin; i < end && !has_intermediate; ++i) {
+                if (!is_layer_z_source(m_result.moves[i]))
+                    continue;
+                const float z = m_result.moves[i].position.z();
+                has_intermediate = z > nominal_z + STAGGER_EPSILON && z < raised_z - STAGGER_EPSILON;
             }
         }
 
-        // Split at the first raised extrusion. Everything from there on - the raised walls, and the
-        // nominal-height infill that follows them - becomes the upper group. Requiring the raised
-        // walls to be the layer's tail does not work: perimeters are emitted before infill, so a
-        // nominal extrusion always follows them and no layer would ever qualify.
-        size_t split       = end;
-        bool   has_nominal = false;
-        for (size_t i = begin; i < end; ++i) {
-            if (!is_layer_z_source(m_result.moves[i]))
-                continue;
-            if (m_result.moves[i].position.z() > nominal_z + STAGGER_EPSILON) {
-                if (split == end)
-                    split = i;
-            }
-            else if (split == end)
-                has_nominal = true;
-        }
+        const bool split = has_z && !has_intermediate && end - begin >= 2 &&
+                           raised_z > nominal_z + STAGGER_EPSILON;
 
-        // Record each group's Z the way libvgcode derives it: its highest extrusion.
-        const auto close_group = [&](size_t from, size_t to) {
-            PreviewLayer layer;
-            for (size_t i = from; i < to; ++i)
-                if (is_layer_z_source(m_result.moves[i]) &&
-                    (!layer.has_z || m_result.moves[i].position.z() > layer.z)) {
-                    layer.z     = m_result.moves[i].position.z();
-                    layer.has_z = true;
-                }
-            for (size_t i = from; i < to; ++i)
+        if (split) {
+            // Two preview steps over one printed layer. Splitting by position cannot separate the
+            // raised walls from the nominal ones - Arachne emits them interleaved, odd insets
+            // raised, and infill at nominal Z after them - so both steps cover the same moves and
+            // differ only in the Z they declare. The viewer drops extrusions above the visible
+            // layer's Z, which is what leaves the raised walls out of the lower step. The upper
+            // step takes the layer's final move so that selecting it widens the vertex range back
+            // over the whole layer.
+            for (size_t i = begin; i + 1 < end; ++i)
                 new_layer_ids[i] = next_layer_id;
-            preview_layers.emplace_back(layer);
+            layer_zs.emplace_back(nominal_z);
             ++next_layer_id;
-        };
 
-        if (split < end && has_nominal) {
-            close_group(begin, split);
-            close_group(split, end);
-            split_any = true;
+            new_layer_ids[end - 1] = next_layer_id;
+            layer_zs.emplace_back(raised_z);
+            ++next_layer_id;
+
+            last_z     = raised_z;
+            has_last_z = true;
+            split_any  = true;
         }
-        else
-            close_group(begin, end);
+        else {
+            for (size_t i = begin; i < end; ++i)
+                new_layer_ids[i] = next_layer_id;
+            // A layer without extrusions - start G-code, a tool change - carries no Z of its own.
+            // Repeat the previous one so the sequence keeps increasing.
+            layer_zs.emplace_back(has_z ? raised_z : (has_last_z ? last_z : 0.0f));
+            ++next_layer_id;
+            if (has_z) {
+                last_z     = raised_z;
+                has_last_z = true;
+            }
+        }
 
         begin = end;
     }
@@ -2778,20 +2795,14 @@ void GCodeProcessor::split_staggered_preview_layers()
     if (!split_any)
         return;
 
-    // Bail out rather than hand libvgcode a layer list its binary search cannot handle. Layers
-    // without extrusions carry no Z of their own and are skipped, exactly as libvgcode leaves
-    // theirs at zero.
-    const PreviewLayer *previous = nullptr;
-    for (const PreviewLayer &layer : preview_layers) {
-        if (!layer.has_z)
-            continue;
-        if (previous != nullptr && layer.z < previous->z)
+    // Bail out rather than hand libvgcode a layer list its binary search cannot handle.
+    for (size_t i = 1; i < layer_zs.size(); ++i)
+        if (layer_zs[i] < layer_zs[i - 1])
             return;
-        previous = &layer;
-    }
 
     for (size_t i = 0; i < m_result.moves.size(); ++i)
         m_result.moves[i].layer_id = new_layer_ids[i];
+    m_result.preview_layer_zs = std::move(layer_zs);
 }
 
 void GCodeProcessor::finalize(bool post_process)

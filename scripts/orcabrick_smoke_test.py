@@ -324,7 +324,24 @@ def source_self_test(repository: Path) -> None:
             "void GCodeProcessor::split_staggered_preview_layers()",
             "split_staggered_preview_layers();",
             # the fail-safe: never commit a renumbering that breaks libvgcode's binary search
-            "if (previous != nullptr && layer.z < previous->z)",
+            "if (layer_zs[i] < layer_zs[i - 1])",
+            # a scarf or sloped seam ramps through a continuum of Zs and must not be split
+            "has_intermediate",
+            "m_result.preview_layer_zs = std::move(layer_zs);",
+        ),
+        # The two halves of a Bricklaying layer cover the same moves and differ only in the Z
+        # they declare, so the viewer has to be told the Zs and has to cut above them.
+        "src/libvgcode/src/Layers.cpp": (
+            "void Layers::set_zs(const std::vector<float>& zs)",
+            "m_explicit_zs = true;",
+        ),
+        "src/libvgcode/src/ViewerImpl.cpp": (
+            "m_layers.set_zs(gcode_data.layer_zs);",
+            "const bool  cut_above_layer = m_layers.has_explicit_zs();",
+            "if (cut_above_layer && v.position[2] > max_extrusion_z)",
+        ),
+        "src/slic3r/GUI/LibVGCode/LibVGCodeWrapper.cpp": (
+            "ret.layer_zs = result.preview_layer_zs;",
         ),
         "src/libslic3r/PrintObject.cpp": (
             'opt_key == "staggered_perimeters"',
@@ -361,6 +378,7 @@ def source_self_test(repository: Path) -> None:
             "dc.SetBrush(wxBrush(wxColour(0, 150, 136)))",
         ),
         "src/slic3r/GUI/GLSelectionRectangle.cpp": ("set_color(ColorRGBA::ORCA())",),
+        "src/slic3r/GUI/IMSlider.cpp": ("BRAND_COLOR",),
     }
     for relative_path, literals in unthemed_literals.items():
         source = (repository / relative_path).read_text(encoding="utf-8")

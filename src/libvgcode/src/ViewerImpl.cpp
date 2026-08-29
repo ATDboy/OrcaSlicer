@@ -1048,6 +1048,10 @@ void ViewerImpl::load(GCodeInputData&& gcode_data)
         v.layer_duration = m_layers.get_layer_time(m_settings.time_mode, static_cast<size_t>(v.layer_id));
     }
 
+    // OrcaBrick: a Bricklaying layer is two layers over the same moves, so its Zs are stated
+    // rather than derived. Every other print leaves this empty and keeps the derived Zs.
+    m_layers.set_zs(gcode_data.layer_zs);
+
     if (!m_layers.empty())
         m_layers.set_view_range(0, static_cast<uint32_t>(m_layers.count()) - 1);
 
@@ -1153,6 +1157,17 @@ void ViewerImpl::update_enabled_entities()
             --range[0];
     }
 
+    // OrcaBrick: with Bricklaying a printed layer becomes two layers over the same moves - the
+    // nominal Z and the raised one - so the vertex range alone cannot tell them apart, and it is
+    // this cutoff that keeps the raised walls out of the lower step. Extrusions only: travels and
+    // wipes sit above the layer whenever Z hop is on.
+    // Gated on has_explicit_zs() so it is inert for every other print. Without it a derived Z is
+    // just the highest extrusion seen in a layer, which sequential printing makes meaningless -
+    // there the second object restarts near the bed while the first still towers over it.
+    const bool  cut_above_layer = m_layers.has_explicit_zs();
+    const float max_extrusion_z = cut_above_layer ?
+        m_layers.get_layer_z(m_layers.get_view_range()[1]) + 0.0001f : 0.0f;
+
     for (size_t i = range[0]; i < range[1]; ++i) {
         const PathVertex& v = m_vertices[i];
 
@@ -1172,6 +1187,8 @@ void ViewerImpl::update_enabled_entities()
         }
         else if (v.is_extrusion()) {
             if (!m_settings.extrusion_roles_visibility[size_t(v.role)])
+                continue;
+            if (cut_above_layer && v.position[2] > max_extrusion_z)
                 continue;
         }
         else

@@ -22,6 +22,13 @@ struct GCodeInputData
     //
     std::vector<PathVertex> vertices;
     //
+    // One Z per layer, in layer order, overriding the Z derived from the vertices.
+    // Bricklaying needs it: a printed layer becomes two layers over the same moves, one at the
+    // nominal Z and one at the raised Z, which cannot be read back off the vertices.
+    // Empty means "derive from the vertices", the behaviour for every other print.
+    //
+    std::vector<float> layer_zs;
+    //
     // Palette for extruders colors
     //
     Palette tools_colors;

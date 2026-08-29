@@ -259,6 +259,11 @@ class Print;
         PrintEstimatedStatistics print_statistics;
         std::vector<CustomGCode::Item> custom_gcode_per_print_z;
         bool spiral_vase_mode;
+        // OrcaBrick: one Z per preview layer, in preview-layer order. Bricklaying gives a
+        // printed layer two preview layers over the same moves - the nominal Z and the raised
+        // one - which the viewer cannot derive from the vertices, so it is stated here.
+        // Empty means "derive it", which is what every non-Bricklaying print does.
+        std::vector<float> preview_layer_zs;
         //BBS
         std::vector<SliceWarning> warnings;
         int nozzle_hrc;
@@ -299,6 +304,7 @@ class Print;
             print_statistics = other.print_statistics;
             custom_gcode_per_print_z = other.custom_gcode_per_print_z;
             spiral_vase_mode = other.spiral_vase_mode;
+            preview_layer_zs = other.preview_layer_zs;
             warnings = other.warnings;
             bed_type = other.bed_type;
             gcode_check_result = other.gcode_check_result;

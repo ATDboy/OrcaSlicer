@@ -39,6 +39,14 @@ static constexpr int   FADING_OUT_TIMEOUT = 100;
 namespace Slic3r {
 namespace GUI {
 
+// Resolved on each call rather than stored: the accent colour is read from the config after
+// static initialisation, so a cached copy would freeze the built-in default.
+static ImVec4 accent_ImVec4(bool hovered = false)
+{
+    const wxColour c = hovered ? StateColor::AccentHoverColor() : StateColor::AccentColor();
+    return ImVec4(c.Red() / 255.f, c.Green() / 255.f, c.Blue() / 255.f, 1.f);
+}
+
 wxDEFINE_EVENT(EVT_EJECT_DRIVE_NOTIFICAION_CLICKED, EjectDriveNotificationClickedEvent);
 wxDEFINE_EVENT(EVT_EXPORT_GCODE_NOTIFICAION_CLICKED, ExportGcodeNotificationClickedEvent);
 wxDEFINE_EVENT(EVT_PRESET_UPDATE_AVAILABLE_CLICKED, PresetUpdateAvailableClickedEvent);
@@ -164,13 +172,13 @@ NotificationManager::PopNotification::PopNotification(const NotificationData &n,
 {
     m_ErrorColor  = ImGuiWrapper::to_ImVec4(decode_color_to_float_array("#E14747")); // ORCA
     m_WarnColor   = ImGuiWrapper::to_ImVec4(decode_color_to_float_array("#F59B16")); // ORCA
-    m_NormalColor = ImVec4(0, 0.588, 0.533, 1);
+    m_NormalColor = accent_ImVec4();
 
 	m_CurrentColor = m_NormalColor;   //Default
 
 	m_WindowBkgColor = ImVec4(1, 1, 1, 1);
     m_TextColor      = ImVec4(.2f, .2f, .2f, 1.0f);
-    m_HyperTextColor = ImVec4(0, 0.588, 0.533, 1);
+    m_HyperTextColor = accent_ImVec4();
 }
 
 // We cannot call plater()->get_current_canvas3D() from constructor, so we do it here
@@ -240,11 +248,8 @@ void NotificationManager::PopNotification::use_bbl_theme()
 	m_TextColor = m_is_dark ? ImVec4(224 / 255.f, 224 / 255.f, 224 / 255.f, 1.f) : ImVec4(.2f, .2f, .2f, 1.0f);
 	// The accent colour and its hover shade already account for the active theme,
 	// so the notification hyperlinks no longer need their own dark/light pair.
-	const auto as_ImVec4 = [](const wxColour &c) {
-		return ImVec4(c.Red() / 255.f, c.Green() / 255.f, c.Blue() / 255.f, 1.f);
-	};
-	m_HyperTextColor = as_ImVec4(StateColor::AccentColor());
-	m_HyperTextColorHover = as_ImVec4(StateColor::AccentHoverColor());
+	m_HyperTextColor = accent_ImVec4();
+	m_HyperTextColorHover = accent_ImVec4(true);
 
 	m_is_dark ? push_style_color(ImGuiCol_Border, {62 / 255.f, 62 / 255.f, 69 / 255.f, 1.f}, true, m_current_fade_opacity) : push_style_color(ImGuiCol_Border, m_CurrentColor, true, m_current_fade_opacity);
     push_style_color(ImGuiCol_WindowBg, m_WindowBkgColor, true, m_current_fade_opacity);

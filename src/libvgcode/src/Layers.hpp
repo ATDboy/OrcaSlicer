@@ -31,6 +31,11 @@ public:
         return (layer_id < m_items.size()) ? m_items[layer_id].z : 0.0f;
     }
     std::size_t get_layer_id_at(float z) const;
+    // Replaces the Zs derived from the vertices. Ignored unless one Z per layer is given.
+    void set_zs(const std::vector<float>& zs);
+    // Whether set_zs() supplied them. Only then may a caller assume a layer's Z is a real
+    // ceiling for its extrusions rather than merely the highest one seen in it.
+    bool has_explicit_zs() const { return m_explicit_zs; }
     
     const Interval& get_view_range() const { return m_view_range.get(); }
     void set_view_range(const Interval& range) { set_view_range(range[0], range[1]); }
@@ -53,6 +58,7 @@ private:
     
     std::vector<Item> m_items;
     Range m_view_range;
+    bool m_explicit_zs{ false };
 };
 
 } // namespace libvgcode

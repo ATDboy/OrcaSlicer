@@ -52,6 +52,7 @@ void Layers::reset()
 {
     m_items.clear();
     m_view_range.reset();
+    m_explicit_zs = false;
 }
 
 std::vector<float> Layers::get_times(ETimeMode mode) const
@@ -73,6 +74,16 @@ std::vector<float> Layers::get_zs() const
         ret.emplace_back(item.z);
     }
     return ret;
+}
+
+void Layers::set_zs(const std::vector<float>& zs)
+{
+    if (zs.empty() || zs.size() != m_items.size())
+        return;
+    for (size_t i = 0; i < m_items.size(); ++i) {
+        m_items[i].z = zs[i];
+    }
+    m_explicit_zs = true;
 }
 
 size_t Layers::get_layer_id_at(float z) const
