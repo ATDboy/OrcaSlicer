@@ -325,8 +325,10 @@ def source_self_test(repository: Path) -> None:
             "split_staggered_preview_layers();",
             # the fail-safe: never commit a renumbering that breaks libvgcode's binary search
             "if (layer_zs[i] < layer_zs[i - 1])",
-            # a scarf or sloped seam ramps through a continuum of Zs and must not be split
-            "has_intermediate",
+            # a scarf or sloped seam ramps through a continuum of Zs and must not be split,
+            # but a ragged raised band must still split - path.height varies across a layer
+            "clears_the_gap",
+            "lowest_raised - nominal_z >= 0.4f * (raised_z - nominal_z)",
             "m_result.preview_layer_zs = std::move(layer_zs);",
         ),
         # The two halves of a Bricklaying layer cover the same moves and differ only in the Z

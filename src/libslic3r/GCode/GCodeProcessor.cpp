@@ -2715,6 +2715,8 @@ void GCodeProcessor::split_staggered_preview_layers()
     bool                      split_any     = false;
     float                     last_z        = 0.0f;
     bool                      has_last_z    = false;
+    size_t                    printed_layers = 0;
+    size_t                    split_layers   = 0;
 
     for (size_t begin = 0; begin < m_result.moves.size();) {
         const unsigned int print_layer_id = m_result.moves[begin].layer_id;
@@ -2739,20 +2741,34 @@ void GCodeProcessor::split_staggered_preview_layers()
                 raised_z = z;
         }
 
-        // Bricklaying puts the raised walls at exactly one Z above the nominal one, so a
-        // Bricklaying layer extrudes at two Zs and nothing in between. A scarf or sloped seam
-        // instead ramps through a continuum, and a layer carrying one must not be split.
-        bool has_intermediate = false;
+        // Tell a Bricklaying layer from a scarf seam by the empty gap directly above the nominal
+        // Z. Bricklaying raises a wall by staggered_z_offset * path.height, so the lowest raised
+        // wall still clears the nominal one by a good fraction of a layer; a scarf ramps up from
+        // the nominal Z and puts extrusions immediately above it.
+        //
+        // The raised walls are NOT all at one Z - path.height varies across a layer (overhangs,
+        // thin walls, bridges) - so the band is ragged, and only its lower edge may be tested.
+        // Requiring "no Z between the nominal one and the highest" rejected almost every real
+        // layer, which is why the split stopped firing.
+        float lowest_raised   = 0.0f;
+        bool  has_raised      = false;
         if (has_z && raised_z > nominal_z + STAGGER_EPSILON) {
-            for (size_t i = begin; i < end && !has_intermediate; ++i) {
+            for (size_t i = begin; i < end; ++i) {
                 if (!is_layer_z_source(m_result.moves[i]))
                     continue;
                 const float z = m_result.moves[i].position.z();
-                has_intermediate = z > nominal_z + STAGGER_EPSILON && z < raised_z - STAGGER_EPSILON;
+                if (z <= nominal_z + STAGGER_EPSILON)
+                    continue;
+                if (!has_raised || z < lowest_raised) {
+                    lowest_raised = z;
+                    has_raised    = true;
+                }
             }
         }
+        const bool clears_the_gap =
+            has_raised && lowest_raised - nominal_z >= 0.4f * (raised_z - nominal_z);
 
-        const bool split = has_z && !has_intermediate && end - begin >= 2 &&
+        const bool split = has_z && clears_the_gap && end - begin >= 2 &&
                            raised_z > nominal_z + STAGGER_EPSILON;
 
         if (split) {
@@ -2775,6 +2791,7 @@ void GCodeProcessor::split_staggered_preview_layers()
             last_z     = raised_z;
             has_last_z = true;
             split_any  = true;
+            ++split_layers;
         }
         else {
             for (size_t i = begin; i < end; ++i)
@@ -2789,6 +2806,7 @@ void GCodeProcessor::split_staggered_preview_layers()
             }
         }
 
+        ++printed_layers;
         begin = end;
     }
 
@@ -2802,6 +2820,11 @@ void GCodeProcessor::split_staggered_preview_layers()
 
     for (size_t i = 0; i < m_result.moves.size(); ++i)
         m_result.moves[i].layer_id = new_layer_ids[i];
+
+    BOOST_LOG_TRIVIAL(info) << "OrcaBrick: Preview shows " << layer_zs.size()
+                            << " layers for " << printed_layers << " printed ones ("
+                            << split_layers << " split into a nominal and a raised step)";
+
     m_result.preview_layer_zs = std::move(layer_zs);
 }
 

@@ -59,9 +59,19 @@ non-Bricklaying print renders exactly as before. That gate matters: a derived la
 only the highest extrusion seen in a layer, which sequential printing makes meaningless,
 because the second object restarts near the bed while the first still towers over it.
 
-A layer is only split when it extrudes at exactly two Zs and nothing in between. A scarf or
-sloped seam ramps through a continuum and is left whole, as is spiral vase. The renumbering
-is discarded unless the resulting Z sequence verifies as monotonic.
+A layer is split only when there is an **empty gap directly above its nominal Z**: the lowest
+raised extrusion has to clear the nominal one by at least 40% of the layer's total raise. That
+is what separates Bricklaying from a scarf seam, which ramps up from the nominal Z and so puts
+extrusions immediately above it. Spiral vase is skipped outright, and the renumbering is
+discarded unless the resulting Z sequence verifies as monotonic.
+
+Only the *lower* edge of the raised band may be tested. The raised walls are not all at one Z:
+the raise is `staggered_z_offset * path.height` and `path.height` varies across a layer
+(overhangs, thin walls, bridges), so the band is ragged. An earlier rule required nothing to
+lie between the nominal Z and the highest raised one, which a ragged band always violates - it
+suppressed the split on essentially every real layer while still passing on a uniform test
+model. The splitter now logs how many layers it split, so that failure mode is visible in the
+log instead of only in the viewer.
 
 Known cost: the upper step owns a single move, so its entry in the per-layer *time* figures
 is near zero. The layer-time view mode therefore reads oddly for Bricklaying prints. The
