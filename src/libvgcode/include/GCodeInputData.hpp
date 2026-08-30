@@ -29,6 +29,13 @@ struct GCodeInputData
     //
     std::vector<float> layer_zs;
     //
+    // 1 where a layer is the upper half of a split printed layer, parallel to layer_zs.
+    // The two halves are one printed layer, so anything that dims "everything below the top
+    // layer" has to treat them as one, or the layer being looked at is dimmed along with the
+    // rest. Empty means no layer is a half.
+    //
+    std::vector<uint8_t> layer_upper_half;
+    //
     // Palette for extruders colors
     //
     Palette tools_colors;

@@ -8,6 +8,7 @@ add_executable(${_TEST_NAME}_tests
 	test_flow.cpp
 	test_gcode.cpp
 	test_gcode_timing.cpp
+	test_orcabrick_preview.cpp
 	test_gcodewriter.cpp
 	test_model.cpp
 	test_print.cpp

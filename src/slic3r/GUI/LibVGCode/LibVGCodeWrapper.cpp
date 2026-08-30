@@ -265,6 +265,7 @@ GCodeInputData convert(const Slic3r::GCodeProcessorResult& result, const std::ve
 
     ret.spiral_vase_mode = result.spiral_vase_mode;
     ret.layer_zs = result.preview_layer_zs;
+    ret.layer_upper_half = result.preview_layer_upper_half;
 
     return ret;
 }

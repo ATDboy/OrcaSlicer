@@ -32,7 +32,16 @@ public:
     }
     std::size_t get_layer_id_at(float z) const;
     // Replaces the Zs derived from the vertices. Ignored unless one Z per layer is given.
-    void set_zs(const std::vector<float>& zs);
+    // upper_half marks the layers that are the second half of a split printed layer.
+    void set_zs(const std::vector<float>& zs, const std::vector<uint8_t>& upper_half);
+    // The first layer id covering the same printed layer as layer_id. For a split layer's upper
+    // half that is the lower half; for everything else it is layer_id itself. Callers that dim
+    // or isolate "the top layer" must use this, or half a Bricklaying layer is treated as if it
+    // were a layer below the one on top.
+    std::size_t print_layer_start(std::size_t layer_id) const {
+        return (layer_id > 0 && layer_id < m_items.size() && m_items[layer_id].upper_half) ?
+            layer_id - 1 : layer_id;
+    }
     // Whether set_zs() supplied them. Only then may a caller assume a layer's Z is a real
     // ceiling for its extrusions rather than merely the highest one seen in it.
     bool has_explicit_zs() const { return m_explicit_zs; }
@@ -54,6 +63,7 @@ private:
         Range range;
         std::array<float, TIME_MODES_COUNT> times{ 0.0f, 0.0f };
         bool contains_colorprint_options{ false };
+        bool upper_half{ false };
     };
     
     std::vector<Item> m_items;

@@ -1654,6 +1654,7 @@ void GCodeProcessorResult::reset() {
 
     moves.clear();
     preview_layer_zs.clear();
+    preview_layer_upper_half.clear();
     lines_ends.clear();
     printable_area = Pointfs();
     //BBS: add bed exclude area
@@ -2696,41 +2697,46 @@ void GCodeProcessor::process_buffer(const std::string &buffer)
 //
 // The nominal height is taken as the lowest extrusion in the layer rather than from print_z,
 // because the "; Z_HEIGHT:" comment print_z is parsed from is only emitted for BBL printers.
-void GCodeProcessor::split_staggered_preview_layers()
+bool GCodeProcessor::split_staggered_preview_layers(std::vector<GCodeProcessorResult::MoveVertex> &moves,
+                                                    std::vector<float>                           &layer_zs,
+                                                    std::vector<uint8_t>                         &layer_upper_half,
+                                                    bool                                          spiral_vase_mode)
 {
     static constexpr float STAGGER_EPSILON = 0.0001f;
 
-    m_result.preview_layer_zs.clear();
-    if (m_result.moves.empty() || m_result.spiral_vase_mode)
-        return;
+    layer_zs.clear();
+    layer_upper_half.clear();
+    if (moves.empty() || spiral_vase_mode)
+        return false;
 
     // Mirrors the vertices libvgcode's Layers::update() takes a layer's Z from.
     const auto is_layer_z_source = [](const GCodeProcessorResult::MoveVertex &move) {
         return move.type == EMoveType::Extrude && move.extrusion_role != erCustom;
     };
 
-    std::vector<unsigned int> new_layer_ids(m_result.moves.size(), 0);
-    std::vector<float>        layer_zs;
-    unsigned int              next_layer_id = 0;
-    bool                      split_any     = false;
-    float                     last_z        = 0.0f;
-    bool                      has_last_z    = false;
+    std::vector<unsigned int> new_layer_ids(moves.size(), 0);
+    std::vector<float>        zs;
+    std::vector<uint8_t>      upper_half;
+    unsigned int              next_layer_id  = 0;
+    bool                      split_any      = false;
+    float                     last_z         = 0.0f;
+    bool                      has_last_z     = false;
     size_t                    printed_layers = 0;
     size_t                    split_layers   = 0;
 
-    for (size_t begin = 0; begin < m_result.moves.size();) {
-        const unsigned int print_layer_id = m_result.moves[begin].layer_id;
+    for (size_t begin = 0; begin < moves.size();) {
+        const unsigned int print_layer_id = moves[begin].layer_id;
         size_t             end            = begin;
-        while (end < m_result.moves.size() && m_result.moves[end].layer_id == print_layer_id)
+        while (end < moves.size() && moves[end].layer_id == print_layer_id)
             ++end;
 
         float nominal_z = 0.0f;
         float raised_z  = 0.0f;
         bool  has_z     = false;
         for (size_t i = begin; i < end; ++i) {
-            if (!is_layer_z_source(m_result.moves[i]))
+            if (!is_layer_z_source(moves[i]))
                 continue;
-            const float z = m_result.moves[i].position.z();
+            const float z = moves[i].position.z();
             if (!has_z) {
                 nominal_z = raised_z = z;
                 has_z     = true;
@@ -2750,13 +2756,13 @@ void GCodeProcessor::split_staggered_preview_layers()
         // thin walls, bridges) - so the band is ragged, and only its lower edge may be tested.
         // Requiring "no Z between the nominal one and the highest" rejected almost every real
         // layer, which is why the split stopped firing.
-        float lowest_raised   = 0.0f;
-        bool  has_raised      = false;
+        float lowest_raised = 0.0f;
+        bool  has_raised    = false;
         if (has_z && raised_z > nominal_z + STAGGER_EPSILON) {
             for (size_t i = begin; i < end; ++i) {
-                if (!is_layer_z_source(m_result.moves[i]))
+                if (!is_layer_z_source(moves[i]))
                     continue;
-                const float z = m_result.moves[i].position.z();
+                const float z = moves[i].position.z();
                 if (z <= nominal_z + STAGGER_EPSILON)
                     continue;
                 if (!has_raised || z < lowest_raised) {
@@ -2781,11 +2787,13 @@ void GCodeProcessor::split_staggered_preview_layers()
             // over the whole layer.
             for (size_t i = begin; i + 1 < end; ++i)
                 new_layer_ids[i] = next_layer_id;
-            layer_zs.emplace_back(nominal_z);
+            zs.emplace_back(nominal_z);
+            upper_half.emplace_back(0);
             ++next_layer_id;
 
             new_layer_ids[end - 1] = next_layer_id;
-            layer_zs.emplace_back(raised_z);
+            zs.emplace_back(raised_z);
+            upper_half.emplace_back(1);
             ++next_layer_id;
 
             last_z     = raised_z;
@@ -2798,7 +2806,8 @@ void GCodeProcessor::split_staggered_preview_layers()
                 new_layer_ids[i] = next_layer_id;
             // A layer without extrusions - start G-code, a tool change - carries no Z of its own.
             // Repeat the previous one so the sequence keeps increasing.
-            layer_zs.emplace_back(has_z ? raised_z : (has_last_z ? last_z : 0.0f));
+            zs.emplace_back(has_z ? raised_z : (has_last_z ? last_z : 0.0f));
+            upper_half.emplace_back(0);
             ++next_layer_id;
             if (has_z) {
                 last_z     = raised_z;
@@ -2811,21 +2820,29 @@ void GCodeProcessor::split_staggered_preview_layers()
     }
 
     if (!split_any)
-        return;
+        return false;
 
     // Bail out rather than hand libvgcode a layer list its binary search cannot handle.
-    for (size_t i = 1; i < layer_zs.size(); ++i)
-        if (layer_zs[i] < layer_zs[i - 1])
-            return;
+    for (size_t i = 1; i < zs.size(); ++i)
+        if (zs[i] < zs[i - 1])
+            return false;
 
-    for (size_t i = 0; i < m_result.moves.size(); ++i)
-        m_result.moves[i].layer_id = new_layer_ids[i];
+    for (size_t i = 0; i < moves.size(); ++i)
+        moves[i].layer_id = new_layer_ids[i];
 
-    BOOST_LOG_TRIVIAL(info) << "OrcaBrick: Preview shows " << layer_zs.size()
+    BOOST_LOG_TRIVIAL(info) << "OrcaBrick: Preview shows " << zs.size()
                             << " layers for " << printed_layers << " printed ones ("
                             << split_layers << " split into a nominal and a raised step)";
 
-    m_result.preview_layer_zs = std::move(layer_zs);
+    layer_zs         = std::move(zs);
+    layer_upper_half = std::move(upper_half);
+    return true;
+}
+
+void GCodeProcessor::split_staggered_preview_layers()
+{
+    split_staggered_preview_layers(m_result.moves, m_result.preview_layer_zs,
+                                   m_result.preview_layer_upper_half, m_result.spiral_vase_mode);
 }
 
 void GCodeProcessor::finalize(bool post_process)

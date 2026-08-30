@@ -73,9 +73,25 @@ suppressed the split on essentially every real layer while still passing on a un
 model. The splitter now logs how many layers it split, so that failure mode is visible in the
 log instead of only in the viewer.
 
+**The two halves are one printed layer, and anything reasoning about "the top layer" has to
+know that.** `update_colors_texture()` dims every vertex whose `layer_id` is below the topmost
+one to `DUMMY_COLOR`. With the upper half on top, every vertex of that same printed layer
+carries the lower id, so the whole layer being looked at was dimmed - the model turned black as
+the slider passed each half layer. `update_view_full_range()`'s top-layer-only range had the
+same flaw. Both now go through `Layers::print_layer_start()`, which maps an upper half back to
+its lower one. `preview_layer_upper_half` carries the pairing alongside the Zs.
+
 Known cost: the upper step owns a single move, so its entry in the per-layer *time* figures
 is near zero. The layer-time view mode therefore reads oddly for Bricklaying prints. The
 layer slider, which is what the split exists for, is correct.
+
+`tests/fff_print/test_orcabrick_preview.cpp` checks the mapping from G-code moves to preview
+layers against libvgcode's actual contract - dense ids from zero that never skip or go
+backwards, one Z per layer, a non-decreasing Z sequence, and for every split pair that the
+nominal step's Z excludes the raised walls while the raised step's includes them all. It also
+pins the cases that must be left whole: a scarf ramp, a plain layer, spiral vase. The
+renumbering is a `static` on `GCodeProcessor` so the test drives it directly, which is why the
+Linux job matters: it is the only leg that compiles `tests/`.
 
 Print statistics are unaffected: `MoveVertex::layer_id` feeds the viewer, while time
 estimation uses the separate `TimeBlock::layer_id`.

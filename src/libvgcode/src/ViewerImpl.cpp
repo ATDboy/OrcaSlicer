@@ -1050,7 +1050,7 @@ void ViewerImpl::load(GCodeInputData&& gcode_data)
 
     // OrcaBrick: a Bricklaying layer is two layers over the same moves, so its Zs are stated
     // rather than derived. Every other print leaves this empty and keeps the derived Zs.
-    m_layers.set_zs(gcode_data.layer_zs);
+    m_layers.set_zs(gcode_data.layer_zs, gcode_data.layer_upper_half);
 
     if (!m_layers.empty())
         m_layers.set_view_range(0, static_cast<uint32_t>(m_layers.count()) - 1);
@@ -1248,7 +1248,11 @@ void ViewerImpl::update_colors_texture()
         return;
 #endif // ENABLE_OPENGL_ES
 
-    const size_t top_layer_id = m_settings.top_layer_only_view_range ? m_layers.get_view_range()[1] : 0;
+    // OrcaBrick: print_layer_start() collapses the two halves of a Bricklaying layer into one.
+    // Without it the upper half is the top layer id, every vertex of that same printed layer
+    // carries the lower id, and the whole layer being looked at is dimmed to DUMMY_COLOR.
+    const size_t top_layer_id = m_settings.top_layer_only_view_range ?
+        m_layers.print_layer_start(m_layers.get_view_range()[1]) : 0;
     const bool color_top_layer_only = m_view_range.get_full()[1] != m_view_range.get_visible()[1];
 
     // Based on current settings and slider position, we might want to render some
@@ -1812,7 +1816,10 @@ void ViewerImpl::update_view_full_range()
             const Interval& full_range = m_view_range.get_full();
             auto top_first_it = m_vertices.begin() + full_range[0];
             bool shortened = false;
-            while (top_first_it != m_vertices.end() && (top_first_it->layer_id < layers_range[1] || !is_visible(*top_first_it, m_settings))) {
+            // OrcaBrick: as above - the top "layer" may be half of a printed one.
+            const uint32_t top_layer_start =
+                static_cast<uint32_t>(m_layers.print_layer_start(layers_range[1]));
+            while (top_first_it != m_vertices.end() && (top_first_it->layer_id < top_layer_start || !is_visible(*top_first_it, m_settings))) {
                 ++top_first_it;
                 shortened = true;
             }

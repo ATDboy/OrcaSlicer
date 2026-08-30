@@ -324,26 +324,39 @@ def source_self_test(repository: Path) -> None:
             "void GCodeProcessor::split_staggered_preview_layers()",
             "split_staggered_preview_layers();",
             # the fail-safe: never commit a renumbering that breaks libvgcode's binary search
-            "if (layer_zs[i] < layer_zs[i - 1])",
+            "if (zs[i] < zs[i - 1])",
             # a scarf or sloped seam ramps through a continuum of Zs and must not be split,
             # but a ragged raised band must still split - path.height varies across a layer
             "clears_the_gap",
             "lowest_raised - nominal_z >= 0.4f * (raised_z - nominal_z)",
-            "m_result.preview_layer_zs = std::move(layer_zs);",
+            # the renumbering is a static so tests/fff_print/test_orcabrick_preview.cpp can
+            # drive it directly instead of the contract being checked only by eye in Preview
+            "bool GCodeProcessor::split_staggered_preview_layers(std::vector<GCodeProcessorResult::MoveVertex> &moves,",
         ),
         # The two halves of a Bricklaying layer cover the same moves and differ only in the Z
         # they declare, so the viewer has to be told the Zs and has to cut above them.
         "src/libvgcode/src/Layers.cpp": (
-            "void Layers::set_zs(const std::vector<float>& zs)",
+            "void Layers::set_zs(const std::vector<float>& zs, const std::vector<uint8_t>& upper_half)",
             "m_explicit_zs = true;",
         ),
         "src/libvgcode/src/ViewerImpl.cpp": (
-            "m_layers.set_zs(gcode_data.layer_zs);",
+            "m_layers.set_zs(gcode_data.layer_zs, gcode_data.layer_upper_half);",
             "const bool  cut_above_layer = m_layers.has_explicit_zs();",
             "if (cut_above_layer && v.position[2] > max_extrusion_z)",
+            # without these the layer under the raised step is dimmed to DUMMY_COLOR and the
+            # model turns black as the slider passes each half layer
+            "m_layers.print_layer_start(m_layers.get_view_range()[1]) : 0;",
+            "top_first_it->layer_id < top_layer_start",
+        ),
+        "src/libvgcode/src/Layers.hpp": (
+            "std::size_t print_layer_start(std::size_t layer_id) const",
         ),
         "src/slic3r/GUI/LibVGCode/LibVGCodeWrapper.cpp": (
             "ret.layer_zs = result.preview_layer_zs;",
+            "ret.layer_upper_half = result.preview_layer_upper_half;",
+        ),
+        "tests/fff_print/CMakeLists.txt": (
+            "test_orcabrick_preview.cpp",
         ),
         "src/libslic3r/PrintObject.cpp": (
             'opt_key == "staggered_perimeters"',

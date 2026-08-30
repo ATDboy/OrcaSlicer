@@ -264,6 +264,10 @@ class Print;
         // one - which the viewer cannot derive from the vertices, so it is stated here.
         // Empty means "derive it", which is what every non-Bricklaying print does.
         std::vector<float> preview_layer_zs;
+        // 1 where a preview layer is the upper half of a split printed layer. The viewer needs it
+        // because the two halves are one printed layer: dimming everything below the topmost
+        // layer id would grey out the very layer the user is looking at.
+        std::vector<uint8_t> preview_layer_upper_half;
         //BBS
         std::vector<SliceWarning> warnings;
         int nozzle_hrc;
@@ -305,6 +309,7 @@ class Print;
             custom_gcode_per_print_z = other.custom_gcode_per_print_z;
             spiral_vase_mode = other.spiral_vase_mode;
             preview_layer_zs = other.preview_layer_zs;
+            preview_layer_upper_half = other.preview_layer_upper_half;
             warnings = other.warnings;
             bed_type = other.bed_type;
             gcode_check_result = other.gcode_check_result;
@@ -1110,6 +1115,18 @@ class Print;
         // OrcaBrick: give Bricklaying's half-layer walls their own step in the Preview layer
         // slider, where doing so provably keeps libvgcode's layer Zs monotonic.
         void split_staggered_preview_layers();
+
+    public:
+        // The renumbering itself, free of the processor's state so it can be tested directly
+        // against libvgcode's contract: dense layer ids from zero, one Z per layer, and a
+        // non-decreasing Z sequence. Returns false and leaves everything untouched when there is
+        // nothing to split or the result would break that contract.
+        static bool split_staggered_preview_layers(std::vector<GCodeProcessorResult::MoveVertex> &moves,
+                                                   std::vector<float>                           &layer_zs,
+                                                   std::vector<uint8_t>                         &layer_upper_half,
+                                                   bool                                          spiral_vase_mode);
+
+    private:
 
         //BBS: different path_type is only used for arc move
         void store_move_vertex(EMoveType type, EMovePathType path_type = EMovePathType::Noop_move, bool internal_only = false);

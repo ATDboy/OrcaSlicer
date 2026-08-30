@@ -76,12 +76,13 @@ std::vector<float> Layers::get_zs() const
     return ret;
 }
 
-void Layers::set_zs(const std::vector<float>& zs)
+void Layers::set_zs(const std::vector<float>& zs, const std::vector<uint8_t>& upper_half)
 {
-    if (zs.empty() || zs.size() != m_items.size())
+    if (zs.empty() || zs.size() != m_items.size() || upper_half.size() != m_items.size())
         return;
     for (size_t i = 0; i < m_items.size(); ++i) {
-        m_items[i].z = zs[i];
+        m_items[i].z          = zs[i];
+        m_items[i].upper_half = upper_half[i] != 0;
     }
     m_explicit_zs = true;
 }
