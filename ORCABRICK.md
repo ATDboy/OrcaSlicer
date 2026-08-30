@@ -223,10 +223,32 @@ does exactly this, and `scripts/linux.d/debian` already special-cases Ubuntu 22.
 Its dependency cache is keyed separately - deps built against a different glibc must never
 be restored into the other build.
 
+### webkit2gtk, the other host dependency that decides portability
+
+glibc is not the only thing taken from the host. `src/slic3r/CMakeLists.txt` has an
+unconditional `pkg_check_modules(webkit2gtk REQUIRED webkit2gtk-4.1)`, and the policy resolves
+`libwebkit2gtk-*.so*` from the host too, so **every distro running the AppImage must have the
+4.1 ABI**. Arch, Fedora and Debian 13 dropped 4.0 entirely; Ubuntu 22.04 and Debian 12 carry
+both.
+
+`scripts/linux.d/debian` used to prefer 4.0 wherever it existed. That predates the 4.1
+requirement and is wrong twice over: on Ubuntu 22.04 and Debian 12 the build fails at configure
+time because `webkit2gtk-4.1.pc` was never installed, and had it linked, the result would not
+start on Arch or Fedora. It now installs 4.1 and only falls back to 4.0 with a warning.
+`orcabrick_smoke_test.py` compares the ABI the script installs against the one CMake requires,
+so the two cannot drift apart again.
+
+### Arch, Fedora and other rolling distros
+
+They need no separate build. Their glibc is newer than either base, and both AppImages link
+webkit2gtk 4.1, which is the only ABI those distros ship. Use whichever build you like; the
+Ubuntu 22.04 one is the safer default because its glibc floor is lower and nothing else about
+it is older.
+
 **If an AppImage refuses to start** with a message about `libfuse.so.2`, the host is missing
 FUSE 2, which Fedora, Arch and Ubuntu 22.04+ no longer install by default. Either run it as
 `./OrcaSlicer_Linux_AppImage_....AppImage --appimage-extract-and-run`, which needs no FUSE at
-all, or install the distro's `libfuse2` / `fuse-libs` package.
+all, or install the distro's `libfuse2` / `fuse2` / `fuse-libs` package.
 
 `scripts/orcabrick_smoke_test.py` fails the build if either platform's job is
 removed, so both deliverables stay guaranteed.

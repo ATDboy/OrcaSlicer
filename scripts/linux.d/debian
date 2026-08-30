@@ -47,12 +47,18 @@ then
         REQUIRED_DEV_PACKAGES+=(libssl-dev libcurl4-openssl-dev)
     fi
 
-    # check which version of libwebkit2gtk is available
-    if [ "$(apt show --quiet libwebkit2gtk-4.0-dev 2>/dev/null)" != "" ]
+    # Install the webkit2gtk ABI the build actually requires. src/slic3r/CMakeLists.txt has
+    # an unconditional pkg_check_modules(webkit2gtk REQUIRED webkit2gtk-4.1), so preferring
+    # 4.0 where both exist - Ubuntu 22.04, Debian 12 - fails at configure time. Taking 4.1
+    # also keeps the resulting binary loadable on Arch, Fedora and Debian 13, which dropped
+    # 4.0 entirely; the AppImage resolves webkit from the host rather than bundling it.
+    if [ "$(apt show --quiet libwebkit2gtk-4.1-dev 2>/dev/null)" != "" ]
     then
-        REQUIRED_DEV_PACKAGES+=(libwebkit2gtk-4.0-dev)
-    else
         REQUIRED_DEV_PACKAGES+=(libwebkit2gtk-4.1-dev)
+    else
+        echo "Warning: libwebkit2gtk-4.1-dev is unavailable; falling back to 4.0, which this" \
+             "version of OrcaSlicer does not build against." >&2
+        REQUIRED_DEV_PACKAGES+=(libwebkit2gtk-4.0-dev)
     fi
 
     # install them all at once

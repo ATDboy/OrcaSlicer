@@ -295,6 +295,24 @@ def source_self_test(repository: Path) -> None:
     orcabrick_workflow = (
         repository / ".github" / "workflows" / "orcabrick_windows.yml"
     ).read_text(encoding="utf-8")
+    # The Linux build resolves webkit from the host, so the ABI the deps script installs is the
+    # ABI every distro running the AppImage must have. It has to match what CMake requires, or
+    # the build fails at configure time on distros carrying both, and the AppImage refuses to
+    # start on Arch, Fedora and Debian 13, which ship only 4.1.
+    cmake_webkit = re.search(
+        r"pkg_check_modules\(webkit2gtk REQUIRED webkit2gtk-([0-9.]+)\)",
+        (repository / "src" / "slic3r" / "CMakeLists.txt").read_text(encoding="utf-8"),
+    )
+    if cmake_webkit is None:
+        raise RuntimeError("src/slic3r/CMakeLists.txt no longer states a webkit2gtk ABI")
+    debian_deps = (repository / "scripts" / "linux.d" / "debian").read_text(encoding="utf-8")
+    preferred = re.search(r'apt show --quiet libwebkit2gtk-([0-9.]+)-dev', debian_deps)
+    if preferred is None or preferred.group(1) != cmake_webkit.group(1):
+        raise RuntimeError(
+            f"scripts/linux.d/debian prefers webkit2gtk-{preferred.group(1) if preferred else '?'} "
+            f"but the build requires {cmake_webkit.group(1)}"
+        )
+
     for job, marker in (("build_windows_x64", "windows-latest"),
                         ("build_linux_x86_64", "ubuntu-24.04"),
                         # the AppImage for distros older than Ubuntu 24.04; without it the
