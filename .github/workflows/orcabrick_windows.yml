@@ -67,6 +67,55 @@ jobs:
       force-build: false
     secrets: inherit
 
+  # Nothing else runs the unit tests. build_orca.yml compiles tests/ only on the aarch64 leg
+  # (its "tests" flag is false for amd64 without a self-hosted runner), CMake defaults
+  # BUILD_TESTS to OFF, and no leg here invokes ctest at all - build 22 proves it, its "Upload
+  # Test Artifact" step was skipped. So tests/fff_print/test_orcabrick_preview.cpp, which exists
+  # to check the G-code to Preview mapping against libvgcode's contract, was compiled nowhere and
+  # run nowhere. This job builds it and runs it.
+  #
+  # It waits for the Linux leg rather than racing it, so the dependency cache it restores is
+  # guaranteed to have been written.
+  unit_tests:
+    name: Unit tests
+    needs: build_linux_x86_64
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # The key build_check_cache.yml computes for the amd64 Linux leg. Restore only: the leg
+      # that built them owns saving them.
+      - name: Load cached dependencies
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ github.workspace }}/deps/build/OrcaSlicer_dep
+          key: linux-clang-cache-orcaslicer_deps-build-${{ hashFiles('deps/**') }}
+          fail-on-cache-miss: true
+
+      - name: Apt-Install Dependencies
+        uses: ./.github/actions/apt-install-deps
+
+      - uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: "~4.3.0"
+
+      - name: Build slicer and tests
+        shell: bash
+        run: ./build_linux.sh -tsrlL
+
+      - name: Run unit tests
+        timeout-minutes: 20
+        shell: bash
+        run: scripts/run_unit_tests.sh
+
+      - name: Upload test logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: OrcaBrick_unit_test_logs
+          path: build/tests/**/*.log
+
   # The same AppImage built against Ubuntu 22.04 instead, for every distro that is not Ubuntu
   # 24.04 or newer. An AppImage deliberately takes glibc, GTK and the GL stack from the host
   # (see scripts/appimage_lib_policy.sh), so the build host's glibc is the floor for every

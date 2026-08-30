@@ -90,8 +90,14 @@ layers against libvgcode's actual contract - dense ids from zero that never skip
 backwards, one Z per layer, a non-decreasing Z sequence, and for every split pair that the
 nominal step's Z excludes the raised walls while the raised step's includes them all. It also
 pins the cases that must be left whole: a scarf ramp, a plain layer, spiral vase. The
-renumbering is a `static` on `GCodeProcessor` so the test drives it directly, which is why the
-Linux job matters: it is the only leg that compiles `tests/`.
+renumbering is a `static` on `GCodeProcessor` so the test can drive it directly.
+
+Getting it to actually run took a dedicated job. `CMakeLists.txt` defaults `BUILD_TESTS` to
+`OFF`; `build_linux.sh` turns it on only with `-t`; and `build_orca.yml` passes `-t` only on the
+aarch64 leg, which this workflow does not have. No leg invokes `ctest` either. Build 22 showed
+it plainly - its *Upload Test Artifact* step was skipped, so `tests/` was never compiled. The
+`unit_tests` job builds with `-t` and runs `scripts/run_unit_tests.sh`, and the smoke test
+requires that job to exist.
 
 Print statistics are unaffected: `MoveVertex::layer_id` feeds the viewer, while time
 estimation uses the separate `TimeBlock::layer_id`.
