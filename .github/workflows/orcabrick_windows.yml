@@ -66,3 +66,59 @@ jobs:
       build-deps-only: false
       force-build: false
     secrets: inherit
+
+  # The same AppImage built against Ubuntu 22.04 instead, for every distro that is not Ubuntu
+  # 24.04 or newer. An AppImage deliberately takes glibc, GTK and the GL stack from the host
+  # (see scripts/appimage_lib_policy.sh), so the build host's glibc is the floor for every
+  # system it can run on: 24.04 links against 2.39, which refuses to start on Debian 12 (2.36),
+  # Ubuntu 22.04 and Mint 21 (2.35) or openSUSE Leap 15.6 (2.38). Building on 22.04 lowers the
+  # floor to 2.35 and covers those and everything newer.
+  #
+  # It builds inside a container rather than on an ubuntu-22.04 runner so it does not depend on
+  # that runner label continuing to exist. build_linux.sh -g already does exactly this, and
+  # scripts/linux.d/debian already special-cases Ubuntu 22.x, so no new build logic is needed.
+  build_linux_x86_64_compat:
+    name: Build Linux x86_64 AppImage (Ubuntu 22.04 base)
+    needs: validate_orcabrick
+    runs-on: ubuntu-24.04
+    env:
+      ORCA_DOCKER_BASE_IMAGE: ubuntu:22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Read the OrcaBrick version
+        shell: bash
+        run: |
+          ver_pure=$(grep 'set(SoftFever_VERSION' version.inc | cut -d '"' -f2)
+          echo "ver_pure=$ver_pure" >> "$GITHUB_ENV"
+          echo "ver=V$ver_pure" >> "$GITHUB_ENV"
+
+      # Keyed separately from the 24.04 deps: they are built against a different glibc and the
+      # two must never be restored into each other's build.
+      - name: Load cached dependencies
+        uses: actions/cache@v5
+        with:
+          path: ${{ github.workspace }}/deps/build/OrcaSlicer_dep
+          key: linux-clang-ubuntu2204-cache-orcaslicer_deps-build-${{ hashFiles('deps/**') }}
+
+      - name: Build dependencies, slicer and AppImage in an Ubuntu 22.04 container
+        shell: bash
+        run: ./build_linux.sh -g -disrlL
+
+      - name: Check bundled libraries
+        shell: bash
+        run: ./scripts/check_appimage_libs.sh ./build/package ./build/package/bin/orca-slicer
+
+      - name: Name the AppImage after its base
+        shell: bash
+        run: |
+          appimage=./build/OrcaSlicer_Linux_AppImage_Ubuntu2204_${{ env.ver }}.AppImage
+          mv -n "./build/OrcaSlicer_Linux_V${{ env.ver_pure }}.AppImage" "$appimage"
+          chmod +x "$appimage"
+
+      - name: Upload artifacts Ubuntu 22.04
+        uses: actions/upload-artifact@v7
+        with:
+          name: OrcaSlicer_Linux_ubuntu_2204_${{ env.ver }}
+          path: ./build/OrcaSlicer_Linux_AppImage_Ubuntu2204_${{ env.ver }}.AppImage

@@ -295,12 +295,16 @@ def source_self_test(repository: Path) -> None:
     orcabrick_workflow = (
         repository / ".github" / "workflows" / "orcabrick_windows.yml"
     ).read_text(encoding="utf-8")
-    for job, runner in (("build_windows_x64", "windows-latest"),
-                        ("build_linux_x86_64", "ubuntu-24.04")):
-        if job not in orcabrick_workflow or runner not in orcabrick_workflow:
+    for job, marker in (("build_windows_x64", "windows-latest"),
+                        ("build_linux_x86_64", "ubuntu-24.04"),
+                        # the AppImage for distros older than Ubuntu 24.04; without it the
+                        # only Linux build links against glibc 2.39 and refuses to start on
+                        # Debian 12, Ubuntu 22.04, Mint 21 or openSUSE Leap
+                        ("build_linux_x86_64_compat", "ORCA_DOCKER_BASE_IMAGE: ubuntu:22.04")):
+        if job not in orcabrick_workflow or marker not in orcabrick_workflow:
             raise RuntimeError(
-                f"OrcaBrick workflow no longer builds {job} on {runner}; "
-                "both Windows and Linux installables are required"
+                f"OrcaBrick workflow no longer builds {job} ({marker}); Windows plus both "
+                "Linux AppImages are required"
             )
 
     required_source_wiring = {

@@ -194,12 +194,39 @@ Every build produces installables for **both Windows and Linux**:
 
 * Windows: `OrcaBrick_Setup_x64.exe` (or `_arm64`), artifact
   `OrcaBrick_Windows_Setup_x64`.
-* Linux: an AppImage, artifact `OrcaSlicer_Linux_ubuntu_2404_V2.4.2+OrcaBrick<n>`
-  containing `OrcaSlicer_Linux_AppImage_Ubuntu2404_V2.4.2+OrcaBrick<n>.AppImage`.
-  The filename keeps the `OrcaSlicer` prefix because it is derived from
+* Linux: **two** AppImages, one per glibc floor. Download either, `chmod +x` it and
+  run it - there is no installation step.
+  * `OrcaSlicer_Linux_ubuntu_2404_V2.4.2+OrcaBrick<n>` - built on Ubuntu 24.04
+    (glibc 2.39). For Ubuntu 24.04+, Fedora 40+, Arch, Debian 13.
+  * `OrcaSlicer_Linux_ubuntu_2204_V2.4.2+OrcaBrick<n>` - built on Ubuntu 22.04
+    (glibc 2.35). For everything older: Debian 12, Ubuntu 22.04, Linux Mint 21,
+    openSUSE Leap 15.6. It runs on the newer distros too, so pick this one if unsure.
+
+  The filenames keep the `OrcaSlicer` prefix because they are derived from
   `SLIC3R_APP_KEY`, which is deliberately unchanged so existing printer, filament
   and process profiles keep working. The application inside is branded OrcaBrick.
-  Download it, `chmod +x` it, and run it - no installation step is needed.
+
+### Why two Linux builds
+
+An AppImage deliberately does not bundle everything. `scripts/appimage_lib_policy.sh`
+resolves glibc, GTK, the GL stack, GStreamer and WebKit from the host, because bundling
+those breaks on drivers and themes. The consequence is that **the build host's glibc is the
+floor for every system the AppImage can run on**: one built on Ubuntu 24.04 links against
+glibc 2.39 and exits with a `GLIBC_2.39 not found` error on Debian 12 (2.36), Ubuntu 22.04
+and Mint 21 (2.35), or openSUSE Leap 15.6 (2.38).
+
+The second build lowers that floor to 2.35. It runs inside an `ubuntu:22.04` container on
+the normal runner rather than on an `ubuntu-22.04` runner, so it does not depend on that
+runner label continuing to exist. `build_linux.sh -g` with `ORCA_DOCKER_BASE_IMAGE` already
+does exactly this, and `scripts/linux.d/debian` already special-cases Ubuntu 22.x (it adds
+`curl libfuse-dev m4` and picks webkit2gtk 4.0 over 4.1), so no new build logic was needed.
+Its dependency cache is keyed separately - deps built against a different glibc must never
+be restored into the other build.
+
+**If an AppImage refuses to start** with a message about `libfuse.so.2`, the host is missing
+FUSE 2, which Fedora, Arch and Ubuntu 22.04+ no longer install by default. Either run it as
+`./OrcaSlicer_Linux_AppImage_....AppImage --appimage-extract-and-run`, which needs no FUSE at
+all, or install the distro's `libfuse2` / `fuse-libs` package.
 
 `scripts/orcabrick_smoke_test.py` fails the build if either platform's job is
 removed, so both deliverables stay guaranteed.
