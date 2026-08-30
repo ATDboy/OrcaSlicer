@@ -244,6 +244,14 @@ start on Arch or Fedora. It now installs 4.1 and only falls back to 4.0 with a w
 `orcabrick_smoke_test.py` compares the ABI the script installs against the one CMake requires,
 so the two cannot drift apart again.
 
+The older base also exposed a latent portability bug. `src/OrcaSlicer.cpp` default-initialised
+a `ThumbnailsParams`, whose `sizes` member is a `const Vec2ds` with no initialiser. Default-
+initialising a class with a const member is ill-formed unless that member's type has a
+user-provided default constructor, and `std::vector`'s is `= default` in libstdc++ 11, so the
+implicit constructor is deleted. It compiled on Ubuntu 24.04 by luck. The declaration turned out
+to be dead - every use is inside a deeper scope that declares its own brace-initialised copy that
+shadows it - so it was simply removed, and the smoke test keeps it from coming back.
+
 ### Arch, Fedora and other rolling distros
 
 They need no separate build. Their glibc is newer than either base, and both AppImages link

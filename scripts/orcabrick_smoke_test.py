@@ -295,6 +295,18 @@ def source_self_test(repository: Path) -> None:
     orcabrick_workflow = (
         repository / ".github" / "workflows" / "orcabrick_windows.yml"
     ).read_text(encoding="utf-8")
+    # ThumbnailsParams holds a const member with no initialiser, so default-initialising it is
+    # ill-formed wherever std::vector's default constructor is not user-provided - which is the
+    # case on Ubuntu 22.04's libstdc++ 11. It compiled on 24.04 by luck and broke the
+    # older-glibc AppImage build. Every other site brace-initialises it; keep it that way.
+    if "ThumbnailsParams thumbnail_params;" in (
+        repository / "src" / "OrcaSlicer.cpp"
+    ).read_text(encoding="utf-8"):
+        raise RuntimeError(
+            "src/OrcaSlicer.cpp default-initialises ThumbnailsParams, which does not compile "
+            "against libstdc++ 11; brace-initialise it or drop it if it is unused"
+        )
+
     # The Linux build resolves webkit from the host, so the ABI the deps script installs is the
     # ABI every distro running the AppImage must have. It has to match what CMake requires, or
     # the build fails at configure time on distros carrying both, and the AppImage refuses to
