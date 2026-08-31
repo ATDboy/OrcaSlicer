@@ -259,6 +259,21 @@ webkit2gtk 4.1, which is the only ABI those distros ship. Use whichever build yo
 Ubuntu 22.04 one is the safer default because its glibc floor is lower and nothing else about
 it is older.
 
+The audit that follows the container build (`check_appimage_libs.sh`) runs on the runner, not in
+the container, so the runner has to have the very libraries the AppImage expects from a host -
+otherwise it reports all of them unresolved. The compat job installs the same dependencies before
+auditing, which keeps the check meaningful: it asks whether a library is one the host is expected
+to provide, not whether this particular runner happens to have it.
+
+### Test status
+
+The `unit_tests` job runs the whole suite. Both OrcaBrick preview tests pass. One unrelated
+upstream test, *Placeholder parser coFloatsOrPercents vector access*, segfaults; it came in with
+upstream's #14526 and nothing in OrcaBrick touches the placeholder parser. It is deliberately
+**not** marked `[NotWorking]` - that would hide an unexplained crash - so the job stays red on it
+until it is diagnosed. It does not block any build leg: the installer and both AppImages are
+produced by other jobs and are unaffected.
+
 **If an AppImage refuses to start** with a message about `libfuse.so.2`, the host is missing
 FUSE 2, which Fedora, Arch and Ubuntu 22.04+ no longer install by default. Either run it as
 `./OrcaSlicer_Linux_AppImage_....AppImage --appimage-extract-and-run`, which needs no FUSE at
