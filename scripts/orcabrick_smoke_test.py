@@ -546,6 +546,34 @@ def source_self_test(repository: Path) -> None:
             )
 
 
+PREVIEW_SPLIT_RE = re.compile(
+    r"OrcaBrick: Preview shows (\d+) layers for (\d+) printed ones \((\d+) split"
+)
+
+
+def preview_split_report(slice_directory: Path) -> dict[str, Any] | None:
+    """What GCodeProcessor::split_staggered_preview_layers() did on the real slice.
+
+    It is the one step between "the G-code raises the walls" - which the Z ladders
+    below establish - and "Preview shows them on their own slider step". The slicer
+    logs it at info level, and run_slice() captures both streams, so read it back
+    rather than inferring it from a screenshot.
+    """
+    for stream in ("slice-stdout.txt", "slice-stderr.txt"):
+        path = slice_directory / stream
+        if not path.is_file():
+            continue
+        match = PREVIEW_SPLIT_RE.search(path.read_text(encoding="utf-8", errors="replace"))
+        if match:
+            return {
+                "stream": stream,
+                "preview_layers": int(match.group(1)),
+                "printed_layers": int(match.group(2)),
+                "split_layers": int(match.group(3)),
+            }
+    return None
+
+
 def run_proof(executable: Path, repository: Path, workdir: Path) -> int:
     if not executable.is_file():
         raise RuntimeError(f"OrcaBrick executable not found: {executable}")
@@ -682,6 +710,10 @@ def run_proof(executable: Path, repository: Path, workdir: Path) -> int:
         # climb 0.2, 0.4, 0.6 ...; ON should climb the same ladder with a rung between each
         # pair. If ON's ladder equals OFF's, nothing is raised and the slice is at fault, not
         # the Preview.
+        # null means the slicer never logged the line - not that nothing was split.
+        # Deliberately not an error: a diagnostic must not cost the build its installer.
+        "preview_split_on": preview_split_report(workdir / "on"),
+        "preview_split_off": preview_split_report(workdir / "off"),
         "nominal_layer_z_mm": rounded_unique(motion_z_values(gcode_off))[:24],
         "all_layer_z_mm_on": rounded_unique(motion_z_values(gcode_on))[:48],
         "distinct_half_layer_perimeter_z_mm": half_layer_values,
