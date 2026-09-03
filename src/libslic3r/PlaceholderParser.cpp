@@ -1070,8 +1070,8 @@ namespace client
                 } else {
                     // Resolve dependencies using the "ratio_over" link to a parent value.
     			    const ConfigOptionDef  *opt_def = print_config_def.get(opt_key);
-    			    if (opt_def == nullptr)
-    			        ctx->throw_exception("FloatOrPercent variable is not a configuration option, the \"ratio_over\" dependencies cannot be resolved", opt.it_range);
+                    if (opt_def == nullptr)
+                        ctx->throw_exception("FloatOrPercent variable is not a configuration option, the \"ratio_over\" dependencies cannot be resolved", opt.it_range);
     			    double v = opt.opt->getFloat() * 0.01; // percent to ratio
     			    for (;;) {
     			        const ConfigOption *opt_parent = opt_def->ratio_over.empty() ? nullptr : ctx->resolve_symbol(opt_def->ratio_over);
@@ -1091,8 +1091,8 @@ namespace client
     			        }
     		        	// Continue one level up in the "ratio_over" hierarchy.
     				    opt_def = print_config_def.get(opt_def->ratio_over);
-    				    if (opt_def == nullptr)
-    				        ctx->throw_exception("FloatOrPercent variable failed to resolve the \"ratio_over\" dependencies", opt.it_range);
+                        if (opt_def == nullptr)
+                            ctx->throw_exception("FloatOrPercent variable failed to resolve the \"ratio_over\" dependencies", opt.it_range);
     			    }
                     output.set_d(v);
     	        }
