@@ -375,13 +375,15 @@ def source_self_test(repository: Path) -> None:
             "Preview cannot be told apart from a wrong slice"
         )
 
-    # The 22.04 container builds as root, so the workspace it leaves behind is root-owned and
-    # the cache action's post-job hashFiles('deps/**') fails - after the AppImage has already
-    # been built and uploaded, which makes the job read as broken when it is not.
-    if 'sudo chown -R "$(id -u):$(id -g)"' not in orcabrick_workflow:
+    # The cache action re-evaluates its key in the post-job save step, once the build has filled
+    # deps/build with the installed dependency tree; hashing deps/** then fails and takes the
+    # whole job down after the AppImage has already been built and uploaded. Builds 27 and 29
+    # both died there. The key has to be resolved once, before the build, and passed as a
+    # literal.
+    if "steps.deps_cache_key.outputs.key" not in orcabrick_workflow:
         raise RuntimeError(
-            "the Ubuntu 22.04 job no longer hands the workspace back from root; its post-job "
-            "cache save will fail on hashFiles('deps/**')"
+            "the Ubuntu 22.04 job hashes deps/** in its cache key again; its post-job save will "
+            "fail once the build has filled deps/build"
         )
 
     required_source_wiring = {

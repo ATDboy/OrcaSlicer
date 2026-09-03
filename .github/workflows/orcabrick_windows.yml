@@ -169,22 +169,33 @@ jobs:
           echo "ver_pure=$ver_pure" >> "$GITHUB_ENV"
           echo "ver=V$ver_pure" >> "$GITHUB_ENV"
 
-      # Keyed separately from the 24.04 deps: they are built against a different glibc and the
-      # two must never be restored into each other's build.
+      # The cache action re-evaluates its `key` expression in the post-job save step, which runs
+      # after the build has filled deps/build with the whole installed dependency tree. Hashing
+      # deps/** then fails, and it failed the job in builds 27 and 29 - after the AppImage had
+      # already been built, audited and uploaded. Resolve the hash once here, while deps/ is
+      # still just sources, and hand the post step a literal string it never has to re-hash.
+      - name: Pin the dependency cache key
+        id: deps_cache_key
+        shell: bash
+        # Keyed separately from the 24.04 deps: they are built against a different glibc and the
+        # two must never be restored into each other's build.
+        run: |
+          echo "key=linux-clang-ubuntu2204-cache-orcaslicer_deps-build-${{ hashFiles('deps/**') }}" >> "$GITHUB_OUTPUT"
+
       - name: Load cached dependencies
         uses: actions/cache@v5
         with:
           path: ${{ github.workspace }}/deps/build/OrcaSlicer_dep
-          key: linux-clang-ubuntu2204-cache-orcaslicer_deps-build-${{ hashFiles('deps/**') }}
+          key: ${{ steps.deps_cache_key.outputs.key }}
 
       - name: Build dependencies, slicer and AppImage in an Ubuntu 22.04 container
         shell: bash
         run: ./build_linux.sh -g -disrlL
 
-      # The container runs as root, so everything it writes into the mounted workspace ends up
-      # root-owned. The cache action's post-job step re-evaluates hashFiles('deps/**') as the
-      # runner user, cannot read those files, and fails the whole job after the AppImage has
-      # already been built and uploaded. Hand the workspace back before that happens.
+      # This was added believing it fixed the post-job cache failure above; build 29 proved it
+      # does not - the chown succeeded and the save step failed anyway. Kept because a workspace
+      # left owned by root is still a hazard for every step after the container, and for the
+      # runner's own cleanup between jobs.
       - name: Restore workspace ownership
         if: always()
         shell: bash
