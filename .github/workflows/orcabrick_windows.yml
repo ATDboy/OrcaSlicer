@@ -116,6 +116,32 @@ jobs:
           name: OrcaBrick_unit_test_logs
           path: build/tests/**/*.log
 
+      # scripts/orcabrick_smoke_test.py has always had a G-code proof - slice the same model
+      # with Bricklaying off and on and check that the walls really move half a layer up - but
+      # nothing ever ran it: the validate job only passes --self-test, which reads sources and
+      # slices nothing. So no leg has ever confirmed that Bricklaying changes the G-code at all,
+      # which left "Preview looks wrong" impossible to split into a wrong Preview or a wrong
+      # slice. This job already built a slicer; make it answer that. The summary is printed to
+      # the log, so the answer is readable without downloading the artifact.
+      - name: Prove Bricklaying in the G-code
+        # A red ctest must not hide this: it is the only evidence of what the slicer emits.
+        if: ${{ !cancelled() }}
+        timeout-minutes: 30
+        shell: bash
+        run: |
+          python3 scripts/orcabrick_smoke_test.py \
+            --exe build/package/bin/orca-slicer \
+            --repo . \
+            --workdir "${{ runner.temp }}/orcabrick-proof"
+
+      - name: Upload the G-code proof
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: OrcaBrick_gcode_proof
+          path: ${{ runner.temp }}/orcabrick-proof/**
+          if-no-files-found: warn
+
   # The same AppImage built against Ubuntu 22.04 instead, for every distro that is not Ubuntu
   # 24.04 or newer. An AppImage deliberately takes glibc, GTK and the GL stack from the host
   # (see scripts/appimage_lib_policy.sh), so the build host's glibc is the floor for every
@@ -154,6 +180,15 @@ jobs:
       - name: Build dependencies, slicer and AppImage in an Ubuntu 22.04 container
         shell: bash
         run: ./build_linux.sh -g -disrlL
+
+      # The container runs as root, so everything it writes into the mounted workspace ends up
+      # root-owned. The cache action's post-job step re-evaluates hashFiles('deps/**') as the
+      # runner user, cannot read those files, and fails the whole job after the AppImage has
+      # already been built and uploaded. Hand the workspace back before that happens.
+      - name: Restore workspace ownership
+        if: always()
+        shell: bash
+        run: sudo chown -R "$(id -u):$(id -g)" "${{ github.workspace }}"
 
       # The audit resolves every dependency the AppImage deliberately does NOT bundle - glibc,
       # GTK, the GL stack, GStreamer, webkit - against the machine it runs on. The build happened

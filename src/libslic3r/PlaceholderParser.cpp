@@ -1024,6 +1024,20 @@ namespace client
             output.it_range.end()   = it_end;
         }
 
+        // The iterator range of a variable reference is extended over the subscript when the
+        // reference is indexed ("foo[0]", see store_variable_index), but the configuration key
+        // is the identifier alone. Looking the whole range up in print_config_def yields
+        // nullptr, and the asserts guarding that are compiled out of a release build, so the
+        // subscript has to be stripped before the lookup.
+        static std::string config_key_of(const OptWithPos &opt)
+        {
+            std::string key(opt.it_range.begin(), opt.it_range.end());
+            if (const size_t subscript = key.find('['); subscript != std::string::npos)
+                key.erase(subscript);
+            boost::trim_right(key);
+            return key;
+        }
+
         // Evaluating a scalar variable into expr,
         // all possible ConfigOption types are supported.
         static void scalar_variable_to_expr(const MyContext *ctx, OptWithPos &opt, expr &output)
@@ -1046,7 +1060,7 @@ namespace client
             case coBool:    output.set_b(opt.opt->getBool());    break;
             case coFloatOrPercent:
             {
-                std::string opt_key(opt.it_range.begin(), opt.it_range.end());
+                const std::string opt_key = config_key_of(opt);
                 if (boost::ends_with(opt_key, "line_width")) {
                     // Line width supports defaults and a complex graph of dependencies.
                     output.set_d(Flow::extrusion_width(opt_key, *ctx, static_cast<unsigned int>(ctx->current_extruder_id)));
@@ -1056,7 +1070,8 @@ namespace client
                 } else {
                     // Resolve dependencies using the "ratio_over" link to a parent value.
     			    const ConfigOptionDef  *opt_def = print_config_def.get(opt_key);
-    			    assert(opt_def != nullptr);
+    			    if (opt_def == nullptr)
+    			        ctx->throw_exception("FloatOrPercent variable is not a configuration option, the \"ratio_over\" dependencies cannot be resolved", opt.it_range);
     			    double v = opt.opt->getFloat() * 0.01; // percent to ratio
     			    for (;;) {
     			        const ConfigOption *opt_parent = opt_def->ratio_over.empty() ? nullptr : ctx->resolve_symbol(opt_def->ratio_over);
@@ -1076,7 +1091,8 @@ namespace client
     			        }
     		        	// Continue one level up in the "ratio_over" hierarchy.
     				    opt_def = print_config_def.get(opt_def->ratio_over);
-    				    assert(opt_def != nullptr);
+    				    if (opt_def == nullptr)
+    				        ctx->throw_exception("FloatOrPercent variable failed to resolve the \"ratio_over\" dependencies", opt.it_range);
     			    }
                     output.set_d(v);
     	        }
@@ -1103,7 +1119,7 @@ namespace client
             // elem_index: the element index used to access this vector element, so that
             // parent vectors (via ratio_over) use the same index rather than the current extruder.
             auto resolve_float_or_percent = [ctx, &opt, &output](const FloatOrPercent &fop, size_t elem_index) {
-                std::string opt_key(opt.it_range.begin(), opt.it_range.end());
+                const std::string opt_key = config_key_of(opt);
                 if (boost::ends_with(opt_key, "line_width")) {
                     // Line width supports defaults and a complex graph of dependencies.
                     output.set_d(Flow::extrusion_width(opt_key, *ctx, static_cast<unsigned int>(ctx->current_extruder_id)));
@@ -1113,7 +1129,8 @@ namespace client
                 } else {
                     // Resolve dependencies using the "ratio_over" link to a parent value.
                     const ConfigOptionDef *opt_def = print_config_def.get(opt_key);
-                    assert(opt_def != nullptr);
+                    if (opt_def == nullptr)
+                        ctx->throw_exception("FloatOrPercent variable is not a configuration option, the \"ratio_over\" dependencies cannot be resolved", opt.it_range);
                     double v = fop.value * 0.01; // percent to ratio
                     for (;;) {
                         const ConfigOption *opt_parent = opt_def->ratio_over.empty() ? nullptr : ctx->resolve_symbol(opt_def->ratio_over);
@@ -1162,7 +1179,8 @@ namespace client
                         }
                         // Continue one level up in the "ratio_over" hierarchy.
                         opt_def = print_config_def.get(opt_def->ratio_over);
-                        assert(opt_def != nullptr);
+                        if (opt_def == nullptr)
+                            ctx->throw_exception("FloatOrPercent variable failed to resolve the \"ratio_over\" dependencies", opt.it_range);
                     }
                     output.set_d(v);
                 }

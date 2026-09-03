@@ -307,6 +307,32 @@ def source_self_test(repository: Path) -> None:
             "against libstdc++ 11; brace-initialise it or drop it if it is unused"
         )
 
+    # A variable reference's iterator range covers its subscript ("foo[0]"), so looking it up
+    # in print_config_def returns nullptr for every indexed access. The asserts that guarded
+    # that are compiled out of a release build and the next line dereferences the null, so a
+    # percent value read as {option[index]} used to segfault. Keep the subscript stripped.
+    parser_source = (repository / "src" / "libslic3r" / "PlaceholderParser.cpp").read_text(
+        encoding="utf-8"
+    )
+    if "config_key_of(opt)" not in parser_source or parser_source.count(
+        "std::string opt_key(opt.it_range.begin(), opt.it_range.end());"
+    ):
+        raise RuntimeError(
+            "PlaceholderParser builds a config key straight from the variable's iterator "
+            "range again; an indexed percent value will dereference a null ConfigOptionDef"
+        )
+
+    # config.option<T>() returns nullptr when the stored option is not a T - it cannot cast a
+    # scalar into a vector - and small_perimeter_speed is a scalar unless the printer declares
+    # extruder variants. Writing through that pointer segfaulted the whole test binary.
+    if 'option<ConfigOptionFloatsOrPercentsNullable>("small_perimeter_speed")' in (
+        repository / "tests" / "libslic3r" / "test_placeholder_parser.cpp"
+    ).read_text(encoding="utf-8"):
+        raise RuntimeError(
+            "tests/libslic3r/test_placeholder_parser.cpp casts the scalar small_perimeter_speed "
+            "into a vector option; install the vector with set_key_value instead"
+        )
+
     # The Linux build resolves webkit from the host, so the ABI the deps script installs is the
     # ABI every distro running the AppImage must have. It has to match what CMake requires, or
     # the build fails at configure time on distros carrying both, and the AppImage refuses to
@@ -339,6 +365,24 @@ def source_self_test(repository: Path) -> None:
                 f"OrcaBrick workflow lost the {job} job ({marker}); the Windows installer, "
                 "both Linux AppImages and the unit tests are all required"
             )
+
+    # For nine builds the only thing CI ran from this script was --self-test, which reads
+    # sources and slices nothing, so nothing ever checked that Bricklaying reaches the G-code.
+    # Keep the proof wired to a real binary.
+    if "--exe build/package/bin/orca-slicer" not in orcabrick_workflow:
+        raise RuntimeError(
+            "no job runs the G-code proof against a built slicer any more; without it a wrong "
+            "Preview cannot be told apart from a wrong slice"
+        )
+
+    # The 22.04 container builds as root, so the workspace it leaves behind is root-owned and
+    # the cache action's post-job hashFiles('deps/**') fails - after the AppImage has already
+    # been built and uploaded, which makes the job read as broken when it is not.
+    if 'sudo chown -R "$(id -u):$(id -g)"' not in orcabrick_workflow:
+        raise RuntimeError(
+            "the Ubuntu 22.04 job no longer hands the workspace back from root; its post-job "
+            "cache save will fail on hashFiles('deps/**')"
+        )
 
     required_source_wiring = {
         "src/libslic3r/PrintConfig.cpp": (
@@ -634,6 +678,12 @@ def run_proof(executable: Path, repository: Path, workdir: Path) -> int:
             event["extrudes_before_next_z"] and event["is_inner_wall"]
             for event in on_events
         ),
+        # The two Z ladders side by side answer the question a screenshot cannot: OFF should
+        # climb 0.2, 0.4, 0.6 ...; ON should climb the same ladder with a rung between each
+        # pair. If ON's ladder equals OFF's, nothing is raised and the slice is at fault, not
+        # the Preview.
+        "nominal_layer_z_mm": rounded_unique(motion_z_values(gcode_off))[:24],
+        "all_layer_z_mm_on": rounded_unique(motion_z_values(gcode_on))[:48],
         "distinct_half_layer_perimeter_z_mm": half_layer_values,
         "first_half_layer_events": on_events[:10],
     }
