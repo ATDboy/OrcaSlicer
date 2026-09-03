@@ -725,6 +725,17 @@ def run_proof(executable: Path, repository: Path, workdir: Path) -> int:
     summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(summary, indent=2))
 
+    # The Z ladders above run to a hundred entries each, and a CI log viewer only ever hands
+    # back the tail, so anything early in the summary is unreadable in practice. Repeat the one
+    # line that matters last, where it is always visible.
+    for label, report in (("ON", summary["preview_split_on"]), ("OFF", summary["preview_split_off"])):
+        print(
+            f"OrcaBrick preview split {label}: "
+            + ("not logged" if report is None else
+               f"{report['preview_layers']} preview layers for {report['printed_layers']} printed, "
+               f"{report['split_layers']} split")
+        )
+
     if errors:
         raise RuntimeError("; ".join(errors))
     return 0
