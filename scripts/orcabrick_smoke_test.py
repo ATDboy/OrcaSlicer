@@ -549,25 +549,35 @@ def source_self_test(repository: Path) -> None:
 
 
 PREVIEW_SPLIT_RE = re.compile(r"OrcaBrick: Preview split .*")
+CLI_BANNER_RE = re.compile(r"cli mode, Current OrcaSlicer Version")
 
 
-def preview_split_report(slice_directory: Path) -> str | None:
+def preview_split_report(slice_directory: Path) -> dict[str, Any]:
     """What GCodeProcessor::split_staggered_preview_layers() did on the real slice.
 
-    It is the one step between "the G-code raises the walls" - which the Z ladders
-    establish - and "Preview shows them on their own slider step". Build 31 reported
-    nothing here, which is itself the finding: the function has three exits that
-    returned silently, so "no line" could mean skipped, nothing to split, or the
-    monotonic bail-out. It now names which, and this returns the line verbatim.
+    Builds 31 and 32 both reported nothing here, the second with every exit of that
+    function logging at warning level - so the question is no longer which exit fired
+    but whether the slicer's log reaches these files at all. OrcaSlicer.cpp emits
+    "cli mode, Current OrcaSlicer Version ..." at warning level before any slicing, so
+    its presence is the control: with it, no split line means the function never ran;
+    without it, the log simply is not captured here and the split line proves nothing.
     """
+    report: dict[str, Any] = {"split_line": None, "log_captured": False, "streams": {}}
     for stream in ("slice-stdout.txt", "slice-stderr.txt"):
         path = slice_directory / stream
         if not path.is_file():
             continue
-        match = PREVIEW_SPLIT_RE.search(path.read_text(encoding="utf-8", errors="replace"))
-        if match:
-            return f"[{stream}] {match.group(0).strip()}"
-    return None
+        text = path.read_text(encoding="utf-8", errors="replace")
+        report["streams"][stream] = {
+            "bytes": len(text),
+            "last_lines": text.splitlines()[-8:],
+        }
+        if CLI_BANNER_RE.search(text):
+            report["log_captured"] = True
+        match = PREVIEW_SPLIT_RE.search(text)
+        if match and report["split_line"] is None:
+            report["split_line"] = f"[{stream}] {match.group(0).strip()}"
+    return report
 
 
 def run_proof(executable: Path, repository: Path, workdir: Path) -> int:
@@ -723,7 +733,16 @@ def run_proof(executable: Path, repository: Path, workdir: Path) -> int:
     # back the tail, so anything early in the summary is unreadable in practice. Repeat the one
     # line that matters last, where it is always visible.
     for label, report in (("ON", summary["preview_split_on"]), ("OFF", summary["preview_split_off"])):
-        print(f"OrcaBrick preview split {label}: {report or 'not logged'}")
+        print(f"OrcaBrick preview split {label}: {report['split_line'] or 'no split line'}")
+        print(
+            f"OrcaBrick slicer log {label}: "
+            + ("captured" if report["log_captured"] else "NOT captured - the split line proves nothing")
+            + "; "
+            + ", ".join(f"{name} {info['bytes']}B" for name, info in report["streams"].items())
+        )
+        for name, info in report["streams"].items():
+            for line in info["last_lines"]:
+                print(f"OrcaBrick {label} {name} | {line}")
 
     if errors:
         raise RuntimeError("; ".join(errors))
