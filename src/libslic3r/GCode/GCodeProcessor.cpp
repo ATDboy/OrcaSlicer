@@ -2706,8 +2706,11 @@ bool GCodeProcessor::split_staggered_preview_layers(std::vector<GCodeProcessorRe
 
     layer_zs.clear();
     layer_upper_half.clear();
-    if (moves.empty() || spiral_vase_mode)
+    if (moves.empty() || spiral_vase_mode) {
+        BOOST_LOG_TRIVIAL(warning) << "OrcaBrick: Preview split skipped, "
+                                   << (moves.empty() ? "there are no moves" : "spiral vase mode is on");
         return false;
+    }
 
     // Mirrors the vertices libvgcode's Layers::update() takes a layer's Z from.
     const auto is_layer_z_source = [](const GCodeProcessorResult::MoveVertex &move) {
@@ -2819,20 +2822,28 @@ bool GCodeProcessor::split_staggered_preview_layers(std::vector<GCodeProcessorRe
         begin = end;
     }
 
-    if (!split_any)
+    if (!split_any) {
+        BOOST_LOG_TRIVIAL(warning) << "OrcaBrick: Preview split found nothing to split in "
+                                   << printed_layers << " printed layers";
         return false;
+    }
 
     // Bail out rather than hand libvgcode a layer list its binary search cannot handle.
     for (size_t i = 1; i < zs.size(); ++i)
-        if (zs[i] < zs[i - 1])
+        if (zs[i] < zs[i - 1]) {
+            BOOST_LOG_TRIVIAL(warning)
+                << "OrcaBrick: Preview split abandoned, step " << i << " of " << zs.size()
+                << " declares Z " << zs[i] << " below step " << i - 1 << "'s " << zs[i - 1]
+                << "; " << split_layers << " of " << printed_layers << " printed layers had split";
             return false;
+        }
 
     for (size_t i = 0; i < moves.size(); ++i)
         moves[i].layer_id = new_layer_ids[i];
 
-    BOOST_LOG_TRIVIAL(info) << "OrcaBrick: Preview shows " << zs.size()
-                            << " layers for " << printed_layers << " printed ones ("
-                            << split_layers << " split into a nominal and a raised step)";
+    BOOST_LOG_TRIVIAL(warning) << "OrcaBrick: Preview split applied, " << zs.size()
+                               << " preview steps for " << printed_layers << " printed layers ("
+                               << split_layers << " split into a nominal and a raised step)";
 
     layer_zs         = std::move(zs);
     layer_upper_half = std::move(upper_half);

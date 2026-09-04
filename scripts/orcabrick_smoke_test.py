@@ -548,18 +548,17 @@ def source_self_test(repository: Path) -> None:
             )
 
 
-PREVIEW_SPLIT_RE = re.compile(
-    r"OrcaBrick: Preview shows (\d+) layers for (\d+) printed ones \((\d+) split"
-)
+PREVIEW_SPLIT_RE = re.compile(r"OrcaBrick: Preview split .*")
 
 
-def preview_split_report(slice_directory: Path) -> dict[str, Any] | None:
+def preview_split_report(slice_directory: Path) -> str | None:
     """What GCodeProcessor::split_staggered_preview_layers() did on the real slice.
 
     It is the one step between "the G-code raises the walls" - which the Z ladders
-    below establish - and "Preview shows them on their own slider step". The slicer
-    logs it at info level, and run_slice() captures both streams, so read it back
-    rather than inferring it from a screenshot.
+    establish - and "Preview shows them on their own slider step". Build 31 reported
+    nothing here, which is itself the finding: the function has three exits that
+    returned silently, so "no line" could mean skipped, nothing to split, or the
+    monotonic bail-out. It now names which, and this returns the line verbatim.
     """
     for stream in ("slice-stdout.txt", "slice-stderr.txt"):
         path = slice_directory / stream
@@ -567,12 +566,7 @@ def preview_split_report(slice_directory: Path) -> dict[str, Any] | None:
             continue
         match = PREVIEW_SPLIT_RE.search(path.read_text(encoding="utf-8", errors="replace"))
         if match:
-            return {
-                "stream": stream,
-                "preview_layers": int(match.group(1)),
-                "printed_layers": int(match.group(2)),
-                "split_layers": int(match.group(3)),
-            }
+            return f"[{stream}] {match.group(0).strip()}"
     return None
 
 
@@ -729,12 +723,7 @@ def run_proof(executable: Path, repository: Path, workdir: Path) -> int:
     # back the tail, so anything early in the summary is unreadable in practice. Repeat the one
     # line that matters last, where it is always visible.
     for label, report in (("ON", summary["preview_split_on"]), ("OFF", summary["preview_split_off"])):
-        print(
-            f"OrcaBrick preview split {label}: "
-            + ("not logged" if report is None else
-               f"{report['preview_layers']} preview layers for {report['printed_layers']} printed, "
-               f"{report['split_layers']} split")
-        )
+        print(f"OrcaBrick preview split {label}: {report or 'not logged'}")
 
     if errors:
         raise RuntimeError("; ".join(errors))
