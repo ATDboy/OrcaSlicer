@@ -79,10 +79,15 @@ def run_slice(
     output_directory: Path,
 ) -> str:
     output_directory.mkdir(parents=True, exist_ok=True)
+    # The slicer writes nothing to stdout or stderr - build 33 measured both at 0 bytes, which
+    # is why three builds looked for its log there and found nothing. --logfile is the route it
+    # actually offers (OrcaSlicer.cpp calls set_logging_file for it).
     command = [
         str(executable),
         "--debug",
         "3",
+        "--logfile",
+        str(output_directory / "slice.log"),
         "--slice",
         "0",
         "--no-check",
@@ -563,7 +568,7 @@ def preview_split_report(slice_directory: Path) -> dict[str, Any]:
     without it, the log simply is not captured here and the split line proves nothing.
     """
     report: dict[str, Any] = {"split_line": None, "log_captured": False, "streams": {}}
-    for stream in ("slice-stdout.txt", "slice-stderr.txt"):
+    for stream in ("slice.log", "slice-stdout.txt", "slice-stderr.txt"):
         path = slice_directory / stream
         if not path.is_file():
             continue
