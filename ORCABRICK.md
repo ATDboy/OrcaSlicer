@@ -14,13 +14,29 @@ The implementation is a port of Nanashi's bricklaying work. It carries that
 design's wall-stack special cases, which are easy to mistake for bugs:
 
 * Objects shorter than 4 layers are skipped entirely.
-* The second layer (`layer_id == 1`) extrudes the staggered walls at **150 %**
-  flow to fill the gap left under the first staggered course.
+* The **first layer is never staggered**. It stays flat on the plate.
+* The second layer (`layer_id == 1`) is the first staggered course, and extrudes
+  its raised walls at **150 %** flow to fill the half layer they leave above the
+  flat first layer.
 * The penultimate layer extrudes them at **50 %** flow and is **not** staggered,
   which closes the stack flush with the top surface.
+* Overhanging and bridged paths are never staggered whatever their inset index.
 
-Those multipliers are applied on top of `staggered_perimeter_flow_ratio`, so the
-user-facing ratio scales them rather than replacing them.
+The 150 % is applied on top of `staggered_perimeter_flow_ratio`, so the user-facing
+ratio scales it. The 50 % is not: that wall is not raised, and the ratio only applies
+to raised ones.
+
+Stacked up, each course sits exactly on the one below:
+
+| Layer | Occupies | Flow |
+| --- | --- | --- |
+| 0 (flat) | `0 .. h` | 1x |
+| 1 (raised) | `h .. 2.5h` | 1.5x |
+| 2 (raised) | `2.5h .. 3.5h` | 1x |
+| ... | ... | 1x |
+| n-3 (raised, last) | up to `(n-2)h + 0.5h` | 1x |
+| n-2 (flat, closing) | `(n-2)h + 0.5h .. (n-1)h` | 0.5x |
+| n-1 (flat, top) | nominal | 1x |
 
 The G-code proof slices the same model with the feature OFF and ON. It requires
 different output, no half-layer extrusion when OFF, repeated half-layer inner
@@ -133,6 +149,19 @@ problem**:
   outer-walls as they get treated as separate 'towers'" - the multi-island case that
   `split_staggered_preview_layers()` deliberately declines to split.
 
+Two G-code post-processors implement the same idea from outside the slicer, and they are
+worth reading because they define what the feature is supposed to do:
+
+* **TengerTechnologies/Bricklayers** (`bricklayers.py`) is the reference. It shifts inner
+  perimeter blocks by `layer_height * 0.5`, and multiplies extrusion by 1.5 on the first
+  layer, 0.5 on the last, and a user ratio in between. It has no notion of wall slope,
+  overhangs, or variable layer height - working on finished G-code, it cannot see them.
+* **drkpxl/Bricklayers** is a tidier fork of the same script with layer-height and printer
+  auto-detection. It documents no edge cases at all.
+
+Running inside the slicer is what makes the geometric guards below possible; a
+post-processor has no upper slices to clip against.
+
 His known-issue list is worth tracking, because those are print-quality limits rather
 than preview cosmetics. Every entry is now either fixed here or refused up front:
 
@@ -144,11 +173,41 @@ than preview cosmetics. Every entry is now either fixed here or refused up front
 | First layer height must equal layer height | **Refused** - `ConfigManipulation` forces them equal. |
 | Several models of different heights confuse the top-layer check | **Not applicable** - `number_of_layers` comes from `layer()->object()->layer_count()`, which is per print object. |
 | Preview groups one layer as several | **Partly addressed** - see Preview behavior above. Multi-island layers still render as one. |
+| First layer lifted off the plate (both upstreams do this) | **Fixed** - layer 0 is never staggered; the 1.5x flow that pairs with it moves to layer 1. See below. |
+| Overhanging and bridged paths raised into air (neither upstream guards this) | **Fixed** - `erOverhangPerimeter` and any bridged role stay at nominal Z. |
 
-One thing from his design is kept deliberately: layer 0's odd walls are staggered, lifting
-them half a layer off the bed, and layer 1 carries a 1.5x flow multiplier that compensates
-for it. Upstream #8181 does the same. The two halves only make sense together, so neither
-was changed without a physical print to judge it.
+### The first layer, and why this fork stopped copying it
+
+Nanashi's design and upstream #8181 both stagger layer 0's odd walls, lifting them half a
+layer off the plate. This port copied that, and an earlier revision of this document
+defended it as one half of a pair with layer 1's 1.5x flow. That was wrong, and the
+arithmetic says so without needing a test print:
+
+* A raised wall on layer 0 occupies `0.5h .. 1.5h`. The gap it leaves is `0 .. 0.5h`,
+  **at the plate**, under the wall.
+* Layer 1's 1.5x flow is deposited at `1.5h .. 2.5h`, above that wall. It cannot reach
+  the gap. Meanwhile layer 1's raised wall already lands squarely on layer 0's raised
+  wall, so the extra 50 % has nothing to fill and simply over-extrudes.
+
+So the two halves did not compensate each other: the first layer printed into air and the
+second over-extruded. There are two self-consistent schemes, and only one of them keeps
+the first layer flat:
+
+* **Tenger's post-processor** raises layer 0 *and* gives layer 0 the 1.5x, so the bead is
+  1.5 layers tall and reaches the plate.
+* **This fork** does not raise layer 0 at all and gives layer 1 the 1.5x, which fills
+  `h .. 2.5h` over the flat first layer.
+
+The second is used here. It keeps the first layer flat for adhesion and first-layer
+calibration, it does not fight `first_layer_flow_ratio` or the first layer's own line
+width, and it was the smaller change - the 1.5x was already on layer 1.
+
+The G-code proof enforces it: with a 0.2 mm layer height, no wall may be raised to 0.4 mm
+or below, so a lifted first layer (which would show up at 0.3 mm) fails the build.
+
+Also fixed beyond both upstreams: an overhanging or bridged path is never raised. It has
+nothing beneath it by definition, so raising it widens the span it already bridges and
+lifts it off the wall it should anchor to. Neither #8181 nor Nanashi's fork guards this.
 
 His multipath handling staggers only the last `ExtrusionMultiPath` of a split run, because
 it runs after the splitting loop. Here the offset is applied to `paths` before splitting, so

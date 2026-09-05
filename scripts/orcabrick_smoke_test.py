@@ -403,6 +403,11 @@ def source_self_test(repository: Path) -> None:
             "if (!is_covered_from_above(cur_path))",
             # never raise a wall on a layer whose height is not the configured one
             "const double configured_layer_height",
+            # never raise a wall on the first layer - it would print into the air above the
+            # plate, and no flow compensation can put material where the nozzle is not
+            "if (layer_id == 0)\n                return;",
+            # never raise a path that is already spanning air
+            "cur_path.role() == erOverhangPerimeter || is_bridge(cur_path.role())",
         ),
         "src/libslic3r/GCode.cpp": (
             "path.staggered_z_offset * path.height",
@@ -696,6 +701,14 @@ def run_proof(executable: Path, repository: Path, workdir: Path) -> int:
     if len(half_layer_values) < 3:
         errors.append(
             "Bricklaying ON does not contain at least three distinct half-layer perimeter heights"
+        )
+    # The first layer must stay flat on the plate. A raised wall there would show up half a
+    # layer above the first nominal Z - 0.3 mm at a 0.2 mm layer height - and would be printing
+    # into air above the bed. The lowest legitimate raised wall belongs to layer 1, at 0.5 mm.
+    if half_layer_values and half_layer_values[0] < 2 * LAYER_HEIGHT_MM:
+        errors.append(
+            f"Bricklaying ON raises a wall to {half_layer_values[0]} mm, at or below the second "
+            f"layer: the first layer is being lifted off the plate"
         )
 
     summary = {

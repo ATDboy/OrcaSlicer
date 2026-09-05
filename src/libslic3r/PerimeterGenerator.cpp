@@ -535,8 +535,25 @@ static ExtrusionEntityCollection traverse_extrusions(const PerimeterGenerator& p
         auto stagger_path = [&perimeter_generator, &is_covered_from_above](ExtrusionPath &cur_path) {
             if (perimeter_generator.number_of_layers < 4 || perimeter_generator.layer_id < 0)
                 return;
-            if (!is_covered_from_above(cur_path))
+            const size_t layer_id = static_cast<size_t>(perimeter_generator.layer_id);
+
+            // OrcaBrick: the first layer stays flat on the plate. Raising a wall half a layer
+            // there extrudes it into the air above the bed - no flow compensation can put
+            // material where the nozzle is not - which ruins adhesion and first layer
+            // calibration alike. The stack starts on layer 1 instead, and it is layer 1's
+            // raised walls that carry 1.5x flow to fill the half layer they leave above the
+            // flat first one. Tenger's post-processor raises the first layer and compensates
+            // there; doing that from inside the slicer would fight the first layer's own flow
+            // and width settings for no strength that starting one layer up does not also give.
+            if (layer_id == 0)
                 return;
+
+            // OrcaBrick: an overhanging or bridged path has nothing beneath it by definition.
+            // Raising it widens the gap it already spans and lifts it off the wall it should
+            // anchor to, so leave those at nominal Z whatever their inset index.
+            if (cur_path.role() == erOverhangPerimeter || is_bridge(cur_path.role()))
+                return;
+
             // OrcaBrick: the half-layer offset assumes every layer is the same height, which is why
             // Nanashi lists adaptive layer height as unsupported. A layer whose height differs from
             // the configured one comes from adaptive layer height or a height-range modifier, so
@@ -546,7 +563,11 @@ static ExtrusionEntityCollection traverse_extrusions(const PerimeterGenerator& p
             if (perimeter_generator.layer_height > configured_layer_height + EPSILON ||
                 perimeter_generator.layer_height < configured_layer_height - EPSILON)
                 return;
-            const size_t layer_id = static_cast<size_t>(perimeter_generator.layer_id);
+
+            // Checked last of all: it clips the path against the whole layer above, which costs
+            // far more than every test before it.
+            if (!is_covered_from_above(cur_path))
+                return;
 
             if (layer_id == 1) {
                 cur_path.extrusion_multiplier = 1.5;
