@@ -526,10 +526,26 @@ static ExtrusionEntityCollection traverse_extrusions(const PerimeterGenerator& p
         // stepped face the layer above is inset, so a raised wall there would stand proud of the
         // finished surface and be visible - the first entry on Nanashi's known-issue list. Null
         // upper_slices means the topmost layer, where by definition nothing covers the wall.
+        //
+        // The test is by length rather than all-or-nothing. Requiring the whole path to be covered
+        // vetoed an entire wall for a single uncovered segment, and a path runs right around the
+        // island: one chamfer, fillet or draft face anywhere on the outline was enough to veto the
+        // wall along every vertical face too. On anything but a prism that rejected almost every
+        // wall, which is what made Bricklaying look like it was doing nothing. A short uncovered
+        // run is the wall passing under a small recess and is harmless; a long one is the wall
+        // genuinely emerging onto a top surface, which is what this guard is for.
+        static constexpr double STAGGER_MAX_UNCOVERED_FRACTION = 0.05;
+
         auto is_covered_from_above = [&perimeter_generator](const ExtrusionPath &cur_path) {
             if (perimeter_generator.upper_slices == nullptr)
                 return false;
-            return diff_pl(Polylines{ cur_path.polyline.to_polyline() }, *perimeter_generator.upper_slices).empty();
+            const Polyline path_polyline = cur_path.polyline.to_polyline();
+            const double   path_length   = path_polyline.length();
+            if (path_length <= 0.)
+                return false;
+            const double uncovered_length =
+                total_length(diff_pl(Polylines{ path_polyline }, *perimeter_generator.upper_slices));
+            return uncovered_length <= STAGGER_MAX_UNCOVERED_FRACTION * path_length;
         };
 
         auto stagger_path = [&perimeter_generator, &is_covered_from_above](ExtrusionPath &cur_path) {
