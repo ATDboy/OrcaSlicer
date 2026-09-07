@@ -2411,26 +2411,6 @@ void PerimeterGenerator::process_arachne()
                 available_candidates.push_back(candidate);
             }
 
-            // Prefer nominal-Z walls only among candidates already unlocked by
-            // Arachne's dependency graph. This keeps Bricklaying's safer wall
-            // order without invalidating the topological constraints.
-            if (this->config->staggered_perimeters) {
-                const bool nominal_wall_available = std::any_of(
-                    available_candidates.begin(), available_candidates.end(),
-                    [&all_extrusions](const size_t idx) {
-                        return all_extrusions[idx]->inset_idx % 2 == 0;
-                    });
-                if (nominal_wall_available) {
-                    available_candidates.erase(
-                        std::remove_if(
-                            available_candidates.begin(), available_candidates.end(),
-                            [&all_extrusions](const size_t idx) {
-                                return all_extrusions[idx]->inset_idx % 2 == 1;
-                            }),
-                        available_candidates.end());
-                }
-            }
-
             std::sort(available_candidates.begin(), available_candidates.end(), [&all_extrusions](const size_t a_idx, const size_t b_idx) -> bool {
                 return all_extrusions[a_idx]->is_closed < all_extrusions[b_idx]->is_closed;
                 });
@@ -2469,6 +2449,25 @@ void PerimeterGenerator::process_arachne()
                 else
                     current_position = best_path->junctions.back().p; //Pick the other end from where we started.
             }
+        }
+
+        // OrcaBrick: lay the whole nominal course before any of the raised one. getRegionOrder()
+        // constrains each island outer wall before inner, so the topological order above is
+        // forced to alternate nominal, raised, nominal, raised within an island - the "prefer a
+        // nominal candidate" filter cannot help there, because the next nominal wall is blocked
+        // behind the raised one. That order asks the nozzle to lay a raised wall over a nominal
+        // one that has not been printed yet, which is the wrong way round: a raised wall sits
+        // half on top of its neighbours, so those have to exist first.
+        //
+        // A stable sort by inset parity groups the courses without disturbing the travel-ordered
+        // sequence within each. It deliberately overrides the outer-before-inner constraint,
+        // which is what Bricklaying requires and what the reference implementation does.
+        if (this->config->staggered_perimeters) {
+            std::stable_sort(ordered_extrusions.begin(), ordered_extrusions.end(),
+                             [](const PerimeterGeneratorArachneExtrusion &lhs,
+                                const PerimeterGeneratorArachneExtrusion &rhs) {
+                                 return lhs.extrusion->inset_idx % 2 < rhs.extrusion->inset_idx % 2;
+                             });
         }
 
        // printf("New Layer: Layer ID %d\n",layer_id); //debug - new layer
