@@ -312,6 +312,33 @@ def source_self_test(repository: Path) -> None:
             "against libstdc++ 11; brace-initialise it or drop it if it is unused"
         )
 
+    # Bricklaying forces every nominal-Z wall out before any raised one, so the effective wall
+    # order is outer-first whatever wall_sequence says. Nanashi's fork reports exactly this as
+    # "OI and IO wall orders are inverted when staggered perimeters are enabled". The setting
+    # has to be forced where the user can see it, not diverge silently from what is printed.
+    config_manipulation = (repository / "src" / "slic3r" / "GUI" / "ConfigManipulation.cpp").read_text(
+        encoding="utf-8"
+    )
+    if 'new ConfigOptionEnum<WallSequence>(WallSequence::OuterInner)' not in config_manipulation:
+        raise RuntimeError(
+            "enabling Bricklaying no longer forces wall_sequence to Outer/Inner; the slicer would "
+            "print outer-first while the UI still claims Inner/Outer"
+        )
+
+    # std::sort with a comparator that can return true for equal elements is undefined behaviour,
+    # not a style question: libstdc++'s introsort runs off the end of the range and crashes.
+    # Nanashi's fork shipped exactly that on the staggered-perimeter ordering (his #303, a <= on
+    # inset_idx % 2) and had to fix it. This port orders walls a different way and never had it;
+    # keep it that way.
+    perimeter_source = (repository / "src" / "libslic3r" / "PerimeterGenerator.cpp").read_text(
+        encoding="utf-8"
+    )
+    if re.search(r"inset_idx % 2\s*<=", perimeter_source):
+        raise RuntimeError(
+            "a <= comparator on inset_idx % 2 is back in PerimeterGenerator.cpp: passed to "
+            "std::sort that is undefined behaviour and crashes, which is what Nanashi's #303 fixed"
+        )
+
     # A variable reference's iterator range covers its subscript ("foo[0]"), so looking it up
     # in print_config_def returns nullptr for every indexed access. The asserts that guarded
     # that are compiled out of a release build and the next line dereferences the null, so a

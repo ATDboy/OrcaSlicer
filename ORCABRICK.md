@@ -175,6 +175,32 @@ than preview cosmetics. Every entry is now either fixed here or refused up front
 | Preview groups one layer as several | **Partly addressed** - see Preview behavior above. Multi-island layers still render as one. |
 | First layer lifted off the plate (both upstreams do this) | **Fixed** - layer 0 is never staggered; the 1.5x flow that pairs with it moves to layer 1. See below. |
 | Overhanging and bridged paths raised into air (neither upstream guards this) | **Fixed** - `erOverhangPerimeter` and any bridged role stay at nominal Z. |
+| OI and IO wall orders inverted when Bricklaying is on (his #303 era report) | **Fixed differently** - the order really is forced outer-first, because a raised bead must land between two walls that are already down. `ConfigManipulation` now sets `wall_sequence` to Outer/Inner so the setting agrees with what is printed instead of diverging silently. |
+| Crash from an invalid sort comparator on the staggered wall order (his #303) | **Never present** - this port orders walls by filtering the topological candidate list, not by sorting `ordered_extrusions`, so it never had the `<=` comparator. A smoke-test guard rejects one if it ever appears. |
+
+### Rechecked against the current upstreams, September 2026
+
+* **PR #8181** has had no functional change since early 2025; everything after is merges
+  from main (latest 8 October 2025). Nothing to take.
+* **Nanashi's fork** ships a rolling nightly (23 August 2026). Its one staggered-perimeter
+  commit since this port is **#303, "stable sort and comparator for staggered perimeters"**
+  (24 July 2026): it replaced
+
+  ```cpp
+  std::sort(..., [](a, b) { return a.extrusion->inset_idx % 2 <= b.extrusion->inset_idx % 2; });
+  ```
+
+  with `std::stable_sort` and `<`. The `<=` is undefined behaviour - a comparator that
+  returns true for equal elements breaks the strict weak ordering `std::sort` requires, and
+  libstdc++'s introsort then runs past the end of the range and crashes. That was a real
+  crash-on-slice bug in his build.
+
+  This port never had it: wall order here comes from filtering the topological candidate
+  list, not from sorting `ordered_extrusions`. The one `std::sort` near that code is
+  upstream OrcaSlicer's own, on `is_closed`, and its comparator is a valid strict weak
+  ordering. A smoke-test guard now rejects any `inset_idx % 2 <=` if it ever appears.
+* His **wall-order report** - "OI and IO wall orders are inverted when staggered perimeters
+  are enabled" - does apply here, and is now handled above.
 
 ### The first layer, and why this fork stopped copying it
 
