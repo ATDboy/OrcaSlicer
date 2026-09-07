@@ -2467,6 +2467,17 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
 
     // modifies m_silent_time_estimator_enabled
     DoExport::init_gcode_processor(print.config(), m_processor, m_silent_time_estimator_enabled);
+
+    // OrcaBrick: tell the processor whether this print contains Bricklaying at all, so the
+    // Preview layer split only runs where there are staggered walls to split. It is a per-region
+    // setting, so any region using it counts.
+    bool has_staggered_perimeters = false;
+    for (size_t i = 0; i < print.num_print_regions(); ++i)
+        if (print.get_print_region(i).config().staggered_perimeters.value) {
+            has_staggered_perimeters = true;
+            break;
+        }
+    m_processor.set_staggered_perimeters_mode(has_staggered_perimeters);
     const bool is_bbl_printers = print.is_BBL_printer();
     const WipeTowerType wipe_tower_type = print.wipe_tower_type();
     m_calib_config.clear();
