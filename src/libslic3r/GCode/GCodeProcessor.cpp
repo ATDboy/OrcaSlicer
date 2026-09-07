@@ -1677,6 +1677,7 @@ void GCodeProcessorResult::reset() {
     filament_costs = std::vector<float>(MIN_EXTRUDERS_COUNT, DEFAULT_FILAMENT_COST);
     custom_gcode_per_print_z = std::vector<CustomGCode::Item>();
     spiral_vase_mode = false;
+    staggered_perimeters_mode = false;
     layer_filaments.clear();
     filament_change_sequence.clear();
     nozzle_change_sequence.clear();
@@ -2144,6 +2145,7 @@ void GCodeProcessor::apply_config(const PrintConfig& config)
         m_result.spiral_vase_mode = spiral_vase->value;
     }
 
+
     const ConfigOptionBool* has_scarf_joint_seam = config.option<ConfigOptionBool>("has_scarf_joint_seam");
     if (has_scarf_joint_seam != nullptr)
         m_detect_layer_based_on_tag = m_detect_layer_based_on_tag || has_scarf_joint_seam->value;
@@ -2474,6 +2476,11 @@ void GCodeProcessor::apply_config(const DynamicPrintConfig& config)
         m_result.spiral_vase_mode = spiral_vase->value;
     }
 
+    // OrcaBrick: the preview split only runs when Bricklaying is actually on.
+    const ConfigOptionBool* staggered_perimeters = config.option<ConfigOptionBool>("staggered_perimeters");
+    if (staggered_perimeters != nullptr)
+        m_result.staggered_perimeters_mode = staggered_perimeters->value;
+
     const ConfigOptionBool* has_scarf_joint_seam = config.option<ConfigOptionBool>("has_scarf_joint_seam");
     if (has_scarf_joint_seam != nullptr)
         m_detect_layer_based_on_tag = m_detect_layer_based_on_tag || has_scarf_joint_seam->value;
@@ -2700,15 +2707,18 @@ void GCodeProcessor::process_buffer(const std::string &buffer)
 bool GCodeProcessor::split_staggered_preview_layers(std::vector<GCodeProcessorResult::MoveVertex> &moves,
                                                     std::vector<float>                           &layer_zs,
                                                     std::vector<uint8_t>                         &layer_upper_half,
-                                                    bool                                          spiral_vase_mode)
+                                                    bool                                          spiral_vase_mode,
+                                                    bool                                          staggered_perimeters_mode)
 {
     static constexpr float STAGGER_EPSILON = 0.0001f;
 
     layer_zs.clear();
     layer_upper_half.clear();
-    if (moves.empty() || spiral_vase_mode) {
+    if (moves.empty() || spiral_vase_mode || !staggered_perimeters_mode) {
         BOOST_LOG_TRIVIAL(warning) << "OrcaBrick: Preview split skipped, "
-                                   << (moves.empty() ? "there are no moves" : "spiral vase mode is on");
+                                   << (moves.empty()      ? "there are no moves" :
+                                       spiral_vase_mode   ? "spiral vase mode is on" :
+                                                            "staggered perimeters is off");
         return false;
     }
 
@@ -2853,7 +2863,8 @@ bool GCodeProcessor::split_staggered_preview_layers(std::vector<GCodeProcessorRe
 void GCodeProcessor::split_staggered_preview_layers()
 {
     split_staggered_preview_layers(m_result.moves, m_result.preview_layer_zs,
-                                   m_result.preview_layer_upper_half, m_result.spiral_vase_mode);
+                                   m_result.preview_layer_upper_half, m_result.spiral_vase_mode,
+                                   m_result.staggered_perimeters_mode);
 }
 
 void GCodeProcessor::finalize(bool post_process)
