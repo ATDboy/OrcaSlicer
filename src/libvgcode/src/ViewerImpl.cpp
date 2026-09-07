@@ -1157,10 +1157,11 @@ void ViewerImpl::update_enabled_entities()
             --range[0];
     }
 
-    // OrcaBrick: with Bricklaying a printed layer becomes two layers over the same moves - the
-    // nominal Z and the raised one - so the vertex range alone cannot tell them apart, and it is
-    // this cutoff that keeps the raised walls out of the lower step. Extrusions only: travels and
-    // wipes sit above the layer whenever Z hop is on.
+    // OrcaBrick: with Bricklaying a printed layer becomes several preview steps, one per run of
+    // extrusions at the same Z. Each step owns the moves printed during it, so the vertex range
+    // above is what separates them; this cutoff is a backstop for a step that somehow declares a
+    // Z below its own extrusions, and is inert as long as that does not happen. Extrusions only:
+    // travels and wipes sit above the layer whenever Z hop is on.
     // Gated on has_explicit_zs() so it is inert for every other print. Without it a derived Z is
     // just the highest extrusion seen in a layer, which sequential printing makes meaningless -
     // there the second object restarts near the bed while the first still towers over it.

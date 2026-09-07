@@ -2691,16 +2691,23 @@ void GCodeProcessor::process_buffer(const std::string &buffer)
     });
 }
 
-// OrcaBrick: Bricklaying prints alternating inner walls half a layer high, so one print layer can
-// hold extrusions at two different Z. libvgcode groups vertices into preview layers by runs of
-// equal layer_id, stores a single Z per layer (that of its last extrusion) and binary searches
-// those Zs in Layers::get_layer_id_at(), so extra preview layers are only sound while the Z
-// sequence stays monotonic. Split a print layer in two only when the raised extrusions form a
-// contiguous tail after at least one nominal extrusion, and commit the renumbering only once the
-// resulting Z sequence has been verified. Everything else keeps the layer whole.
+// OrcaBrick: Bricklaying prints alternating inner walls half a layer high, so one printed layer
+// holds extrusions at two different Z. The Preview should follow the G-code route rather than
+// collapse those into one step: the printer lays the nominal walls, then comes back and lays the
+// raised ones, and scrolling the layer slider should show exactly that happening.
 //
-// The two earlier marker-driven attempts split unconditionally. Interleaved walls then produced
-// non-monotonic Zs, which is what made the model render black or vanish.
+// So the split is by run, in G-code order. Walk a printed layer's moves and start a new preview
+// step wherever the extrusion Z steps up from the run before it. Each step covers the moves
+// actually printed during it, which is what makes the slider build the layer up instead of
+// swapping between two views of it.
+//
+// libvgcode groups vertices into preview layers by runs of equal layer_id, stores one Z per layer
+// and binary searches those Zs in Layers::get_layer_id_at(), so the Z sequence has to be
+// non-decreasing. Within a printed layer a step therefore declares the highest Z reached so far:
+// a run that dips back down (the wall order is decided by Arachne's dependency graph, which can
+// hand back a nominal wall after a raised one) is folded into the run before it rather than
+// declaring a Z below it. Between printed layers no such clamping happens, so a print that really
+// does descend is caught by the check at the end and left unsplit.
 //
 // The nominal height is taken as the lowest extrusion in the layer rather than from print_z,
 // because the "; Z_HEIGHT:" comment print_z is parsed from is only emitted for BBL printers.
@@ -2711,6 +2718,10 @@ bool GCodeProcessor::split_staggered_preview_layers(std::vector<GCodeProcessorRe
                                                     bool                                          staggered_perimeters_mode)
 {
     static constexpr float STAGGER_EPSILON = 0.0001f;
+    // How far above the extrusion before it a wall must sit to count as staggered rather than
+    // ramped, as a fraction of its own height. Bricklaying raises by half a height; a scarf seam
+    // climbs a whole height spread over its entire length.
+    static constexpr float STAGGER_MIN_RISE_FRACTION = 0.25f;
 
     layer_zs.clear();
     layer_upper_half.clear();
@@ -2732,10 +2743,10 @@ bool GCodeProcessor::split_staggered_preview_layers(std::vector<GCodeProcessorRe
     std::vector<uint8_t>      upper_half;
     unsigned int              next_layer_id  = 0;
     bool                      split_any      = false;
-    float                     last_z         = 0.0f;
-    bool                      has_last_z     = false;
     size_t                    printed_layers = 0;
     size_t                    split_layers   = 0;
+    float                     running_z      = 0.0f;
+    bool                      has_running_z  = false;
 
     for (size_t begin = 0; begin < moves.size();) {
         const unsigned int print_layer_id = moves[begin].layer_id;
@@ -2743,92 +2754,82 @@ bool GCodeProcessor::split_staggered_preview_layers(std::vector<GCodeProcessorRe
         while (end < moves.size() && moves[end].layer_id == print_layer_id)
             ++end;
 
+        // The layer's own floor, so a run is judged against this layer rather than the last one.
         float nominal_z = 0.0f;
-        float raised_z  = 0.0f;
         bool  has_z     = false;
         for (size_t i = begin; i < end; ++i) {
             if (!is_layer_z_source(moves[i]))
                 continue;
             const float z = moves[i].position.z();
-            if (!has_z) {
-                nominal_z = raised_z = z;
+            if (!has_z || z < nominal_z) {
+                nominal_z = z;
                 has_z     = true;
             }
-            else if (z < nominal_z)
-                nominal_z = z;
-            else if (z > raised_z)
-                raised_z = z;
         }
 
-        // Tell a Bricklaying layer from a scarf seam by the empty gap directly above the nominal
-        // Z. Bricklaying raises a wall by staggered_z_offset * path.height, so the lowest raised
-        // wall still clears the nominal one by a good fraction of a layer; a scarf ramps up from
-        // the nominal Z and puts extrusions immediately above it.
-        //
-        // The raised walls are NOT all at one Z - path.height varies across a layer (overhangs,
-        // thin walls, bridges) - so the band is ragged, and only its lower edge may be tested.
-        // Requiring "no Z between the nominal one and the highest" rejected almost every real
-        // layer, which is why the split stopped firing.
-        float lowest_raised = 0.0f;
-        bool  has_raised    = false;
-        if (has_z && raised_z > nominal_z + STAGGER_EPSILON) {
-            for (size_t i = begin; i < end; ++i) {
-                if (!is_layer_z_source(moves[i]))
-                    continue;
-                const float z = moves[i].position.z();
-                if (z <= nominal_z + STAGGER_EPSILON)
-                    continue;
-                if (!has_raised || z < lowest_raised) {
-                    lowest_raised = z;
-                    has_raised    = true;
-                }
-            }
-        }
-        const bool clears_the_gap =
-            has_raised && lowest_raised - nominal_z >= 0.4f * (raised_z - nominal_z);
-
-        const bool split = has_z && clears_the_gap && end - begin >= 2 &&
-                           raised_z > nominal_z + STAGGER_EPSILON;
-
-        if (split) {
-            // Two preview steps over one printed layer. Splitting by position cannot separate the
-            // raised walls from the nominal ones - Arachne emits them interleaved, odd insets
-            // raised, and infill at nominal Z after them - so both steps cover the same moves and
-            // differ only in the Z they declare. The viewer drops extrusions above the visible
-            // layer's Z, which is what leaves the raised walls out of the lower step. The upper
-            // step takes the layer's final move so that selecting it widens the vertex range back
-            // over the whole layer.
-            for (size_t i = begin; i + 1 < end; ++i)
-                new_layer_ids[i] = next_layer_id;
-            zs.emplace_back(nominal_z);
-            upper_half.emplace_back(0);
-            ++next_layer_id;
-
-            new_layer_ids[end - 1] = next_layer_id;
-            zs.emplace_back(raised_z);
-            upper_half.emplace_back(1);
-            ++next_layer_id;
-
-            last_z     = raised_z;
-            has_last_z = true;
-            split_any  = true;
-            ++split_layers;
-        }
-        else {
+        // A layer with no extrusions of its own - start G-code, a tool change - carries no Z.
+        // Repeat the previous one so the sequence keeps increasing.
+        if (!has_z) {
             for (size_t i = begin; i < end; ++i)
                 new_layer_ids[i] = next_layer_id;
-            // A layer without extrusions - start G-code, a tool change - carries no Z of its own.
-            // Repeat the previous one so the sequence keeps increasing.
-            zs.emplace_back(has_z ? raised_z : (has_last_z ? last_z : 0.0f));
+            zs.emplace_back(has_running_z ? running_z : 0.0f);
             upper_half.emplace_back(0);
             ++next_layer_id;
-            if (has_z) {
-                last_z     = raised_z;
-                has_last_z = true;
-            }
+            ++printed_layers;
+            begin = end;
+            continue;
         }
 
+        // Open the layer's first step at its nominal Z; the raised band opens a second one, and
+        // at most that - see the loop below. The running maximum is per printed layer and is
+        // not carried across layers: a print whose Z genuinely goes back down between layers -
+        // sequential printing, where the next object restarts at the bed - must reach the
+        // monotonicity check below and abandon the split, not be clamped into looking monotonic.
+        running_z         = nominal_z;
+        has_running_z     = true;
+        size_t steps_here = 1;
+        zs.emplace_back(running_z);
+        upper_half.emplace_back(0);
+
+        float prev_z = nominal_z;
+        for (size_t i = begin; i < end; ++i) {
+            if (is_layer_z_source(moves[i])) {
+                const float z = moves[i].position.z();
+                // A staggered wall arrives as a jump of half a layer from the extrusion before
+                // it. A scarf seam also climbs above the nominal Z, but it ramps there a sliver
+                // at a time, and splitting on every sliver would give the seam a preview step of
+                // its own per move. Only a jump opens a step; a ramp stays in the run it is in.
+                const bool jumped = moves[i].height > 0.0f &&
+                                    z - prev_z >= STAGGER_MIN_RISE_FRACTION * moves[i].height;
+                if (steps_here == 1) {
+                    if (jumped && z > running_z + STAGGER_EPSILON) {
+                        // The raised walls start here: the layer's second step opens.
+                        running_z = z;
+                        ++next_layer_id;
+                        ++steps_here;
+                        zs.emplace_back(running_z);
+                        upper_half.emplace_back(1);
+                    }
+                }
+                else if (z > running_z + STAGGER_EPSILON) {
+                    // Still inside the raised band. path.height varies across a layer - overhangs,
+                    // thin walls, bridges - so the raised walls land at a spread of Zs rather than
+                    // one. They are all the same pass of the nozzle, so they stay one step; the
+                    // step just declares the highest of them.
+                    running_z   = z;
+                    zs.back()   = running_z;
+                }
+                prev_z = z;
+            }
+            new_layer_ids[i] = next_layer_id;
+        }
+
+        ++next_layer_id;
         ++printed_layers;
+        if (steps_here > 1) {
+            split_any = true;
+            ++split_layers;
+        }
         begin = end;
     }
 
@@ -2838,13 +2839,14 @@ bool GCodeProcessor::split_staggered_preview_layers(std::vector<GCodeProcessorRe
         return false;
     }
 
-    // Bail out rather than hand libvgcode a layer list its binary search cannot handle.
+    // Runs within a printed layer only ever climb, but nothing here forces one printed layer to
+    // start above the last - sequential printing restarts the next object at the bed. Rather than
+    // hand libvgcode a layer list its binary search cannot handle, leave the print unsplit.
     for (size_t i = 1; i < zs.size(); ++i)
         if (zs[i] < zs[i - 1]) {
             BOOST_LOG_TRIVIAL(warning)
                 << "OrcaBrick: Preview split abandoned, step " << i << " of " << zs.size()
-                << " declares Z " << zs[i] << " below step " << i - 1 << "'s " << zs[i - 1]
-                << "; " << split_layers << " of " << printed_layers << " printed layers had split";
+                << " declares Z " << zs[i] << " below step " << i - 1 << "'s " << zs[i - 1];
             return false;
         }
 
@@ -2853,7 +2855,7 @@ bool GCodeProcessor::split_staggered_preview_layers(std::vector<GCodeProcessorRe
 
     BOOST_LOG_TRIVIAL(warning) << "OrcaBrick: Preview split applied, " << zs.size()
                                << " preview steps for " << printed_layers << " printed layers ("
-                               << split_layers << " split into a nominal and a raised step)";
+                               << split_layers << " built up over more than one step)";
 
     layer_zs         = std::move(zs);
     layer_upper_half = std::move(upper_half);

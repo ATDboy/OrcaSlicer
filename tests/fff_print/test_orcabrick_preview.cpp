@@ -123,7 +123,32 @@ SCENARIO("Bricklaying layers become two preview steps", "[OrcaBrick][Preview]")
         }
     }
 
-    THEN("the nominal step's Z excludes every raised wall, the raised step's includes them all") {
+    THEN("each step owns a contiguous run of moves, in the order they are printed") {
+        // This is what makes the slider build the layer up rather than swap between two views of
+        // it: a step's moves are the ones the printer laid during it, and the lower step's moves
+        // all come before the upper step's.
+        for (size_t lower = 0; lower + 1 < split.zs.size(); ++lower) {
+            if (split.upper_half[lower] || !split.upper_half[lower + 1])
+                continue; // not a split pair
+
+            size_t last_lower  = 0;
+            size_t first_upper = moves.size();
+            bool   seen_lower  = false;
+            for (size_t i = 0; i < moves.size(); ++i) {
+                if (moves[i].layer_id == lower) {
+                    last_lower = i;
+                    seen_lower = true;
+                }
+                else if (moves[i].layer_id == lower + 1 && first_upper == moves.size())
+                    first_upper = i;
+            }
+            REQUIRE(seen_lower);
+            REQUIRE(first_upper < moves.size());
+            REQUIRE(last_lower < first_upper);
+        }
+    }
+
+    THEN("the nominal step's Z sits below every raised wall, the raised step's at or above them") {
         for (size_t lower = 0; lower + 1 < split.zs.size(); ++lower) {
             if (split.upper_half[lower] || !split.upper_half[lower + 1])
                 continue; // not a split pair
