@@ -32,6 +32,7 @@ public:
     static double LAB_Delta_E(const wxColour& c1, const wxColour& c2);
 
     static void SetDarkMode(bool dark);
+    static bool IsDarkMode();
     static void SetAccentColor(const wxColour &color);
     static wxColour AccentColor();
     // Colour of a model on the plate whose filament colour is "automatic".

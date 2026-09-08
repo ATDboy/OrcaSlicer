@@ -2693,11 +2693,11 @@ void GCodeProcessor::process_buffer(const std::string &buffer)
 
 // OrcaBrick: Bricklaying prints alternating inner walls half a layer high, so one print layer can
 // hold extrusions at two different Z. libvgcode groups vertices into preview layers by runs of
-// equal layer_id, stores a single Z per layer (that of its last extrusion) and binary searches
+// equal layer_id, stores a single Z per layer and binary searches
 // those Zs in Layers::get_layer_id_at(), so extra preview layers are only sound while the Z
-// sequence stays monotonic. Split a print layer in two only when the raised extrusions form a
-// contiguous tail after at least one nominal extrusion, and commit the renumbering only once the
-// resulting Z sequence has been verified. Everything else keeps the layer whole.
+// sequence stays monotonic. Two storage ranges reserve the two preview steps; the viewer selects
+// each extrusion's physical half by its Z, regardless of its place in those ranges. Commit the
+// renumbering only once the resulting Z sequence has been verified.
 //
 // The two earlier marker-driven attempts split unconditionally. Interleaved walls then produced
 // non-monotonic Zs, which is what made the model render black or vanish.
@@ -2716,7 +2716,7 @@ bool GCodeProcessor::split_staggered_preview_layers(std::vector<GCodeProcessorRe
     layer_upper_half.clear();
     if (moves.size() < 2 || spiral_vase_mode || !staggered_perimeters_mode) {
         BOOST_LOG_TRIVIAL(warning) << "OrcaBrick: Preview split skipped, "
-                                   << (moves.empty()      ? "there are no moves" :
+                                   << (moves.size() < 2   ? "there are no rendered moves" :
                                        spiral_vase_mode   ? "spiral vase mode is on" :
                                                             "staggered perimeters is off");
         return false;

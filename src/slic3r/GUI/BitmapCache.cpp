@@ -368,12 +368,10 @@ wxBitmap* BitmapCache::load_svg(const std::string &bitmap_name, unsigned target_
     for (const auto& entry : StateColor::GetDarkMap()) {
         const wxColour mapped = dark_mode ? StateColor::darkModeColorFor(entry.first) :
                                            StateColor::lightModeColorFor(entry.first);
-        if (mapped != entry.first) {
-            const std::string source = entry.first.GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
-            const std::string target = mapped.GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
-            replace_svg_color(source, target);
-            replace_svg_color(boost::algorithm::to_lower_copy(source), target);
-        }
+        const std::string source = entry.first.GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
+        const std::string target = mapped.GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
+        replace_svg_color(source, target);
+        replace_svg_color(boost::algorithm::to_lower_copy(source), target);
     }
 
     if (!new_color.empty())
