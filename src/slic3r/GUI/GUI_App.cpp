@@ -3731,6 +3731,10 @@ const wxColour GUI_App::get_label_default_clr_modified()
 
 void GUI_App::init_label_colours()
 {
+    for (size_t i = 0; i < static_cast<size_t>(StateColor::ThemeColor::Count); ++i) {
+        const auto role = static_cast<StateColor::ThemeColor>(i);
+        StateColor::SetThemeColor(role, wxColour(from_u8(app_config->get(StateColor::ThemeColorKey(role)))));
+    }
     wxColour accent(from_u8(app_config->get("accent_color")));
     StateColor::SetAccentColor(accent.IsOk() ? accent : wxColour("#00E5FF"));
     // An unset model colour stays invalid, which StateColor reads as "follow the accent".
@@ -3751,6 +3755,15 @@ void GUI_App::init_label_colours()
 #endif
     m_color_window_default          = is_dark_mode ? wxColour(43, 43, 43)   : wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
     StateColor::SetDarkMode(is_dark_mode);
+    using Role = StateColor::ThemeColor;
+    m_color_window_default = StateColor::ThemeColorFor(Role::Window, m_color_window_default);
+    m_color_label_default = StateColor::ThemeColorFor(Role::Text, m_color_label_default);
+    m_color_label_sys = StateColor::ThemeColorFor(Role::Text, m_color_label_sys);
+    m_color_highlight_label_default = StateColor::ThemeColorFor(Role::Text, m_color_highlight_label_default);
+    m_color_highlight_default = StateColor::ThemeColorFor(Role::Panel, m_color_highlight_default);
+    m_color_hovered_btn_label = StateColor::ThemeColorFor(Role::Text, m_color_hovered_btn_label);
+    m_color_default_btn_label = StateColor::ThemeColorFor(Role::Text, m_color_default_btn_label);
+    m_color_selected_btn_bg = StateColor::ThemeColorFor(Role::ButtonHover, m_color_selected_btn_bg);
 }
 
 void GUI_App::update_label_colours_from_appconfig()
@@ -3883,6 +3896,10 @@ void GUI_App::UpdateDarkUI(wxWindow* window, bool highlited/* = false*/, bool ju
             fg_col = StateColor::SetLightness(fg_col, 70);
         }
 
+        // Explicit text choices must survive the built-in dark-mode contrast adjustment.
+        const wxColour configured_text = StateColor::ThemeColorFor(StateColor::ThemeColor::Text, wxColour());
+        if (configured_text.IsOk() && (orig_col == configured_text || StateColor::darkModeColorFor(orig_col) == configured_text))
+            fg_col = configured_text;
         window->SetForegroundColour(fg_col);
     }
     else {

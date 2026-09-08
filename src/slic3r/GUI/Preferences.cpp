@@ -1006,6 +1006,37 @@ wxBoxSizer* PreferencesDialog::create_item_model_color()
     return sizer;
 }
 
+wxBoxSizer* PreferencesDialog::create_item_theme_color(const wxString& title, size_t role_id)
+{
+    const auto role = static_cast<StateColor::ThemeColor>(role_id);
+    const std::string key = StateColor::ThemeColorKey(role);
+    const wxString tip = _L("Choose a main interface colour. Restart OrcaBrick to apply it throughout the interface. "
+                            "Use default restores the built-in colour for the current light or dark mode.");
+    auto* sizer = create_item_label(title, tip);
+    const wxColour configured(from_u8(app_config->get(key)));
+    auto* picker = new wxColourPickerCtrl(m_parent, wxID_ANY,
+        configured.IsOk() ? configured : StateColor::DefaultThemeColor(role));
+    auto* use_default = new ::CheckBox(m_parent);
+    use_default->SetValue(!configured.IsOk());
+    picker->Enable(configured.IsOk());
+    picker->SetToolTip(tip);
+    auto* label = new wxStaticText(m_parent, wxID_ANY, _L("Use default"));
+    label->SetFont(::Label::Body_14);
+    use_default->SetToolTip(tip);
+    auto save = [this, key, picker, use_default]() {
+        picker->Enable(!use_default->GetValue());
+        app_config->set(key, use_default->GetValue() ? "" :
+            into_u8(picker->GetColour().GetAsString(wxC2S_HTML_SYNTAX)));
+        app_config->save();
+    };
+    picker->Bind(wxEVT_COLOURPICKER_CHANGED, [save](wxColourPickerEvent& event) { save(); event.Skip(); });
+    use_default->Bind(wxEVT_TOGGLEBUTTON, [save](wxCommandEvent& event) { save(); event.Skip(); });
+    sizer->Add(picker, 0, wxALIGN_CENTER);
+    sizer->Add(use_default, 0, wxALIGN_CENTER | wxLEFT, FromDIP(12));
+    sizer->Add(label, 0, wxALIGN_CENTER | wxLEFT, FromDIP(6));
+    return sizer;
+}
+
 void PreferencesDialog::set_dark_mode()
 {
 #ifdef __WINDOWS__
@@ -1619,6 +1650,14 @@ void PreferencesDialog::create_items()
     g_sizer->Add(create_item_accent_color());
 
     g_sizer->Add(create_item_model_color());
+
+    const wxString theme_titles[] = {_L("Window background"), _L("Panel background"), _L("Toolbar background"),
+        _L("Main text"), _L("Secondary text"), _L("Borders and separators"), _L("Button background"),
+        _L("Button hover"), _L("Accent hover"), _L("Selection background"), _L("3D canvas background")};
+    static_assert(std::size(theme_titles) == static_cast<size_t>(StateColor::ThemeColor::Count));
+    g_sizer->Add(create_item_title(_L("Interface colours (restart required)")), 1, wxEXPAND);
+    for (size_t i = 0; i < std::size(theme_titles); ++i)
+        g_sizer->Add(create_item_theme_color(theme_titles[i], i));
 
     auto item_single_instance  = create_item_checkbox(_L("Allow only one OrcaSlicer instance"),
     #if __APPLE__

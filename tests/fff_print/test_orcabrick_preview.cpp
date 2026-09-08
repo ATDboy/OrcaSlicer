@@ -62,11 +62,11 @@ struct Split
     std::vector<uint8_t> upper_half;
 };
 
-Split run(std::vector<Move> &moves, bool spiral_vase = false)
+Split run(std::vector<Move> &moves, bool spiral_vase = false, bool staggered_perimeters = true)
 {
     Split out;
     out.happened = GCodeProcessor::split_staggered_preview_layers(moves, out.zs, out.upper_half,
-                                                                  spiral_vase);
+                                                                  spiral_vase, staggered_perimeters);
     return out;
 }
 
@@ -187,6 +187,24 @@ SCENARIO("Layers that are not Bricklaying are left alone", "[OrcaBrick][Preview]
         }
     }
 
+    GIVEN("moves that would split, but with staggered perimeters switched off") {
+        std::vector<Move> moves;
+        moves.emplace_back(travel(0, 0.0f));
+        moves.emplace_back(travel(0, 0.0f));
+        append_bricklaying_layer(moves, 1, 0.2f, { 0.2f, 0.2f, 0.2f, 0.15f });
+        append_bricklaying_layer(moves, 2, 0.4f, { 0.2f, 0.12f, 0.2f, 0.2f });
+
+        std::vector<Move> before = moves;
+        const Split       split  = run(moves, /* spiral_vase */ false, /* staggered_perimeters */ false);
+
+        THEN("the split is skipped and the layer ids are untouched") {
+            REQUIRE_FALSE(split.happened);
+            REQUIRE(split.zs.empty());
+            for (size_t i = 0; i < moves.size(); ++i)
+                REQUIRE(moves[i].layer_id == before[i].layer_id);
+        }
+    }
+
     GIVEN("spiral vase mode, where Z rises continuously by design") {
         std::vector<Move> moves;
         moves.emplace_back(travel(0, 0.0f));
@@ -200,4 +218,15 @@ SCENARIO("Layers that are not Bricklaying are left alone", "[OrcaBrick][Preview]
             REQUIRE(split.zs.empty());
         }
     }
+}
+
+TEST_CASE("The unrendered initial position does not create an empty preview layer", "[OrcaBrick][Preview]")
+{
+    std::vector<Move> moves{travel(0, 0.0f)};
+    append_bricklaying_layer(moves, 1, 0.4f, {0.2f, 0.2f});
+    const Split split = run(moves);
+    REQUIRE(split.happened);
+    REQUIRE(split.zs.size() == 2);
+    REQUIRE(moves[1].layer_id == 0);
+    require_libvgcode_contract(moves, split);
 }

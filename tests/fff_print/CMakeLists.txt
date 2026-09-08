@@ -9,6 +9,9 @@ add_executable(${_TEST_NAME}_tests
 	test_gcode.cpp
 	test_gcode_timing.cpp
 	test_orcabrick_preview.cpp
+	../../src/libvgcode/src/Layers.cpp
+	../../src/libvgcode/src/Range.cpp
+	test_orcabrick_viewer_layers.cpp
 	test_gcodewriter.cpp
 	test_model.cpp
 	test_print.cpp

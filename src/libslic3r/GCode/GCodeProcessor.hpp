@@ -259,6 +259,11 @@ class Print;
         PrintEstimatedStatistics print_statistics;
         std::vector<CustomGCode::Item> custom_gcode_per_print_z;
         bool spiral_vase_mode;
+        // OrcaBrick: true when staggered_perimeters was on for this print. The preview split
+        // below reshapes the layer list, so it must only run for prints that actually contain
+        // Bricklaying - a scarf seam or a variable-height path can otherwise look enough like a
+        // raised wall to trip it on a print that has no staggered walls at all.
+        bool staggered_perimeters_mode;
         // OrcaBrick: one Z per preview layer, in preview-layer order. Bricklaying gives a
         // printed layer two preview layers over the same moves - the nominal Z and the raised
         // one - which the viewer cannot derive from the vertices, so it is stated here.
@@ -308,6 +313,7 @@ class Print;
             print_statistics = other.print_statistics;
             custom_gcode_per_print_z = other.custom_gcode_per_print_z;
             spiral_vase_mode = other.spiral_vase_mode;
+            staggered_perimeters_mode = other.staggered_perimeters_mode;
             preview_layer_zs = other.preview_layer_zs;
             preview_layer_upper_half = other.preview_layer_upper_half;
             warnings = other.warnings;
@@ -896,6 +902,11 @@ class Print;
                                               const std::vector<int>      &filament_map,
                                               const std::vector<std::set<int>>& unprintable_filament_types );
         void apply_config(const PrintConfig& config);
+
+        // OrcaBrick: staggered_perimeters is a PrintRegionConfig option, so it cannot be read
+        // from the PrintConfig that apply_config() above receives. The exporter, which can see
+        // the print's regions, states it here instead. Call it after apply_config().
+        void set_staggered_perimeters_mode(bool staggered) { m_result.staggered_perimeters_mode = staggered; }
         void set_print(Print* print) { m_print = print; }
 
         DynamicConfig export_config_for_render() const;
@@ -1124,7 +1135,8 @@ class Print;
         static bool split_staggered_preview_layers(std::vector<GCodeProcessorResult::MoveVertex> &moves,
                                                    std::vector<float>                           &layer_zs,
                                                    std::vector<uint8_t>                         &layer_upper_half,
-                                                   bool                                          spiral_vase_mode);
+                                                   bool                                          spiral_vase_mode,
+                                                   bool                                          staggered_perimeters_mode);
 
     private:
 

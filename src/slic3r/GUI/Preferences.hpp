@@ -92,6 +92,7 @@ public:
     wxBoxSizer *create_item_darkmode(wxString title,wxString tooltip, std::string param);
     wxBoxSizer *create_item_accent_color();
     wxBoxSizer *create_item_model_color();
+    wxBoxSizer *create_item_theme_color(const wxString& title, size_t role_id);
     void set_dark_mode();
     wxBoxSizer *create_item_button(wxString title, wxString title2, wxString tooltip, wxString tooltip2, std::function<void()> onclick, const wxString wiki_url = "");
     wxBoxSizer *create_item_downloads(wxString title, wxString tooltip);

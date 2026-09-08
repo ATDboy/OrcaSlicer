@@ -4,6 +4,7 @@
 #include <wx/colour.h>
 
 #include <map>
+#include <array>
 
 class StateColor
 {
@@ -31,6 +32,7 @@ public:
     static double LAB_Delta_E(const wxColour& c1, const wxColour& c2);
 
     static void SetDarkMode(bool dark);
+    static bool IsDarkMode();
     static void SetAccentColor(const wxColour &color);
     static wxColour AccentColor();
     // Colour of a model on the plate whose filament colour is "automatic".
@@ -39,6 +41,13 @@ public:
     static wxColour ModelColor();
     static wxColour AccentHoverColor();
     static wxColour AccentLightColor();
+
+    enum class ThemeColor { Window, Panel, Toolbar, Text, MutedText, Border, Button,
+                            ButtonHover, AccentHover, AccentLight, Canvas, Count };
+    static const char* ThemeColorKey(ThemeColor role);
+    static void SetThemeColor(ThemeColor role, const wxColour& color);
+    static wxColour ThemeColorFor(ThemeColor role, const wxColour& fallback);
+    static wxColour DefaultThemeColor(ThemeColor role);
 
     static std::map<wxColour, wxColour> const & GetDarkMap();
     static wxColour darkModeColorFor(wxColour const &color);

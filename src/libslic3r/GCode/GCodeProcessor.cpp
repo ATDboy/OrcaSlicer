@@ -1677,6 +1677,7 @@ void GCodeProcessorResult::reset() {
     filament_costs = std::vector<float>(MIN_EXTRUDERS_COUNT, DEFAULT_FILAMENT_COST);
     custom_gcode_per_print_z = std::vector<CustomGCode::Item>();
     spiral_vase_mode = false;
+    staggered_perimeters_mode = false;
     layer_filaments.clear();
     filament_change_sequence.clear();
     nozzle_change_sequence.clear();
@@ -2144,6 +2145,7 @@ void GCodeProcessor::apply_config(const PrintConfig& config)
         m_result.spiral_vase_mode = spiral_vase->value;
     }
 
+
     const ConfigOptionBool* has_scarf_joint_seam = config.option<ConfigOptionBool>("has_scarf_joint_seam");
     if (has_scarf_joint_seam != nullptr)
         m_detect_layer_based_on_tag = m_detect_layer_based_on_tag || has_scarf_joint_seam->value;
@@ -2474,6 +2476,11 @@ void GCodeProcessor::apply_config(const DynamicPrintConfig& config)
         m_result.spiral_vase_mode = spiral_vase->value;
     }
 
+    // OrcaBrick: the preview split only runs when Bricklaying is actually on.
+    const ConfigOptionBool* staggered_perimeters = config.option<ConfigOptionBool>("staggered_perimeters");
+    if (staggered_perimeters != nullptr)
+        m_result.staggered_perimeters_mode = staggered_perimeters->value;
+
     const ConfigOptionBool* has_scarf_joint_seam = config.option<ConfigOptionBool>("has_scarf_joint_seam");
     if (has_scarf_joint_seam != nullptr)
         m_detect_layer_based_on_tag = m_detect_layer_based_on_tag || has_scarf_joint_seam->value;
@@ -2686,11 +2693,11 @@ void GCodeProcessor::process_buffer(const std::string &buffer)
 
 // OrcaBrick: Bricklaying prints alternating inner walls half a layer high, so one print layer can
 // hold extrusions at two different Z. libvgcode groups vertices into preview layers by runs of
-// equal layer_id, stores a single Z per layer (that of its last extrusion) and binary searches
+// equal layer_id, stores a single Z per layer and binary searches
 // those Zs in Layers::get_layer_id_at(), so extra preview layers are only sound while the Z
-// sequence stays monotonic. Split a print layer in two only when the raised extrusions form a
-// contiguous tail after at least one nominal extrusion, and commit the renumbering only once the
-// resulting Z sequence has been verified. Everything else keeps the layer whole.
+// sequence stays monotonic. Two storage ranges reserve the two preview steps; the viewer selects
+// each extrusion's physical half by its Z, regardless of its place in those ranges. Commit the
+// renumbering only once the resulting Z sequence has been verified.
 //
 // The two earlier marker-driven attempts split unconditionally. Interleaved walls then produced
 // non-monotonic Zs, which is what made the model render black or vanish.
@@ -2700,15 +2707,18 @@ void GCodeProcessor::process_buffer(const std::string &buffer)
 bool GCodeProcessor::split_staggered_preview_layers(std::vector<GCodeProcessorResult::MoveVertex> &moves,
                                                     std::vector<float>                           &layer_zs,
                                                     std::vector<uint8_t>                         &layer_upper_half,
-                                                    bool                                          spiral_vase_mode)
+                                                    bool                                          spiral_vase_mode,
+                                                    bool                                          staggered_perimeters_mode)
 {
     static constexpr float STAGGER_EPSILON = 0.0001f;
 
     layer_zs.clear();
     layer_upper_half.clear();
-    if (moves.empty() || spiral_vase_mode) {
+    if (moves.size() < 2 || spiral_vase_mode || !staggered_perimeters_mode) {
         BOOST_LOG_TRIVIAL(warning) << "OrcaBrick: Preview split skipped, "
-                                   << (moves.empty() ? "there are no moves" : "spiral vase mode is on");
+                                   << (moves.size() < 2   ? "there are no rendered moves" :
+                                       spiral_vase_mode   ? "spiral vase mode is on" :
+                                                            "staggered perimeters is off");
         return false;
     }
 
@@ -2727,7 +2737,9 @@ bool GCodeProcessor::split_staggered_preview_layers(std::vector<GCodeProcessorRe
     size_t                    printed_layers = 0;
     size_t                    split_layers   = 0;
 
-    for (size_t begin = 0; begin < moves.size();) {
+    // Move zero is only the starting position; the viewer never converts it to a vertex.
+    // Do not allocate a preview layer that would have no vertices in libvgcode.
+    for (size_t begin = 1; begin < moves.size();) {
         const unsigned int print_layer_id = moves[begin].layer_id;
         size_t             end            = begin;
         while (end < moves.size() && moves[end].layer_id == print_layer_id)
@@ -2853,7 +2865,8 @@ bool GCodeProcessor::split_staggered_preview_layers(std::vector<GCodeProcessorRe
 void GCodeProcessor::split_staggered_preview_layers()
 {
     split_staggered_preview_layers(m_result.moves, m_result.preview_layer_zs,
-                                   m_result.preview_layer_upper_half, m_result.spiral_vase_mode);
+                                   m_result.preview_layer_upper_half, m_result.spiral_vase_mode,
+                                   m_result.staggered_perimeters_mode);
 }
 
 void GCodeProcessor::finalize(bool post_process)
