@@ -7,6 +7,7 @@
 
 #include <boost/nowide/cstdio.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/algorithm/string/case_conv.hpp>
 
 #ifdef __WXGTK2__
     // Broken alpha workaround
@@ -361,6 +362,18 @@ wxBitmap* BitmapCache::load_svg(const std::string &bitmap_name, unsigned target_
         replaces["#262E30"] = "#EFEFF0"; // ORCA
     } else {
         replaces["#949494"] = "#7C8282"; // ORCA replace icon line color for light theme
+    }
+
+    // Keep the main icon text and panel tokens consistent with the native controls.
+    for (const auto& entry : StateColor::GetDarkMap()) {
+        const wxColour mapped = dark_mode ? StateColor::darkModeColorFor(entry.first) :
+                                           StateColor::lightModeColorFor(entry.first);
+        if (mapped != entry.first) {
+            const std::string source = entry.first.GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
+            const std::string target = mapped.GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
+            replace_svg_color(source, target);
+            replace_svg_color(boost::algorithm::to_lower_copy(source), target);
+        }
     }
 
     if (!new_color.empty())

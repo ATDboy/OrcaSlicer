@@ -7793,6 +7793,10 @@ void GLCanvas3D::_render_background()
     glsafe(::glDisable(GL_DEPTH_TEST));
 
     ColorRGBA background_color = m_is_dark ? DEFAULT_BG_LIGHT_COLOR_DARK : DEFAULT_BG_LIGHT_COLOR;
+    const wxColour canvas_color = StateColor::ThemeColorFor(StateColor::ThemeColor::Canvas, wxColour());
+    if (canvas_color.IsOk())
+        background_color = ColorRGBA(canvas_color.Red() / 255.f, canvas_color.Green() / 255.f,
+                                     canvas_color.Blue() / 255.f, 1.f);
     ColorRGBA error_background_color = m_is_dark ? ERROR_BG_LIGHT_COLOR_DARK : ERROR_BG_LIGHT_COLOR;
     const ColorRGBA bottom_color = use_error_color ? error_background_color : background_color;
 

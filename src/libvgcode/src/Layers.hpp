@@ -45,6 +45,15 @@ public:
     // Whether set_zs() supplied them. Only then may a caller assume a layer's Z is a real
     // ceiling for its extrusions rather than merely the highest one seen in it.
     bool has_explicit_zs() const { return m_explicit_zs; }
+
+    std::size_t print_layer_end(std::size_t layer_id) const {
+        return (layer_id + 1 < m_items.size() && m_items[layer_id + 1].upper_half) ?
+            layer_id + 1 : layer_id;
+    }
+    // Storage ids remain contiguous in G-code order. A raised wall may occur anywhere in that
+    // range, so its visible half is determined by extrusion Z, not by its storage id.
+    std::size_t preview_layer_id(const PathVertex& vertex) const;
+    bool extrusion_in_view(const PathVertex& endpoint) const;
     
     const Interval& get_view_range() const { return m_view_range.get(); }
     void set_view_range(const Interval& range) { set_view_range(range[0], range[1]); }

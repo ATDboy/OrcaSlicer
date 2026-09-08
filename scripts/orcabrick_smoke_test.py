@@ -462,10 +462,12 @@ def source_self_test(repository: Path) -> None:
         "src/libvgcode/src/ViewerImpl.cpp": (
             "m_layers.set_zs(gcode_data.layer_zs, gcode_data.layer_upper_half);",
             "const bool  cut_above_layer = m_layers.has_explicit_zs();",
-            "if (cut_above_layer && v.position[2] > max_extrusion_z)",
+            "m_layers.extrusion_in_view(endpoint)",
             # without these the layer under the raised step is dimmed to DUMMY_COLOR and the
             # model turns black as the slider passes each half layer
-            "m_layers.print_layer_start(m_layers.get_view_range()[1]) : 0;",
+            "m_layers.preview_layer_id(m_vertices[i]) < top_layer_id",
+            "m_layers.print_layer_start(layers_range[0])",
+            "m_layers.print_layer_end(layers_range[1])",
             "top_first_it->layer_id < top_layer_start",
         ),
         "src/libvgcode/src/Layers.hpp": (

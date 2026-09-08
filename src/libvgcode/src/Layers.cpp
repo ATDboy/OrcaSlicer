@@ -87,10 +87,29 @@ void Layers::set_zs(const std::vector<float>& zs, const std::vector<uint8_t>& up
     m_explicit_zs = true;
 }
 
+size_t Layers::preview_layer_id(const PathVertex& vertex) const
+{
+    if (!m_explicit_zs || vertex.type != EMoveType::Extrude || vertex.role == EGCodeExtrusionRole::Custom)
+        return vertex.layer_id;
+    const size_t lower = print_layer_start(vertex.layer_id);
+    const size_t upper = print_layer_end(lower);
+    return lower != upper && vertex.position[2] > get_layer_z(lower) + 0.0001f ? upper : lower;
+}
+
 size_t Layers::get_layer_id_at(float z) const
 {
     auto iter = std::upper_bound(m_items.begin(), m_items.end(), z, [](float z, const Item& item) { return item.z < z; });
     return std::distance(m_items.begin(), iter);
+}
+
+bool Layers::extrusion_in_view(const PathVertex& endpoint) const
+{
+    if (!m_explicit_zs)
+        return true;
+    const size_t layer = preview_layer_id(endpoint);
+    const Interval& range = get_view_range();
+    return layer >= range[0] && layer <= range[1] &&
+           endpoint.position[2] <= get_layer_z(range[1]) + 0.0001f;
 }
 
 size_t Layers::size_in_bytes_cpu() const

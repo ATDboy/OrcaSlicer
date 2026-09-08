@@ -1165,8 +1165,6 @@ void ViewerImpl::update_enabled_entities()
     // just the highest extrusion seen in a layer, which sequential printing makes meaningless -
     // there the second object restarts near the bed while the first still towers over it.
     const bool  cut_above_layer = m_layers.has_explicit_zs();
-    const float max_extrusion_z = cut_above_layer ?
-        m_layers.get_layer_z(m_layers.get_view_range()[1]) + 0.0001f : 0.0f;
 
     for (size_t i = range[0]; i < range[1]; ++i) {
         const PathVertex& v = m_vertices[i];
@@ -1188,8 +1186,12 @@ void ViewerImpl::update_enabled_entities()
         else if (v.is_extrusion()) {
             if (!m_settings.extrusion_roles_visibility[size_t(v.role)])
                 continue;
-            if (cut_above_layer && v.position[2] > max_extrusion_z)
-                continue;
+            if (cut_above_layer) {
+                // Segments run from i to i+1; the endpoint owns the extrusion's layer and Z.
+                const PathVertex& endpoint = m_vertices[i + 1];
+                if (!m_layers.extrusion_in_view(endpoint))
+                    continue;
+            }
         }
         else
             continue;
@@ -1248,11 +1250,9 @@ void ViewerImpl::update_colors_texture()
         return;
 #endif // ENABLE_OPENGL_ES
 
-    // OrcaBrick: print_layer_start() collapses the two halves of a Bricklaying layer into one.
-    // Without it the upper half is the top layer id, every vertex of that same printed layer
-    // carries the lower id, and the whole layer being looked at is dimmed to DUMMY_COLOR.
+    // Use the physical half for highlighting, even when the G-code interleaves its walls.
     const size_t top_layer_id = m_settings.top_layer_only_view_range ?
-        m_layers.print_layer_start(m_layers.get_view_range()[1]) : 0;
+        m_layers.get_view_range()[1] : 0;
     const bool color_top_layer_only = m_view_range.get_full()[1] != m_view_range.get_visible()[1];
 
     // Based on current settings and slider position, we might want to render some
@@ -1260,7 +1260,7 @@ void ViewerImpl::update_colors_texture()
     std::vector<float> colors(m_vertices_colors.size());
     assert(colors.size() == m_vertices.size() && m_vertices_colors.size() == m_vertices.size());
     for (size_t i=0; i<m_vertices.size(); ++i)
-        colors[i] = (color_top_layer_only && m_vertices[i].layer_id < top_layer_id &&
+        colors[i] = (color_top_layer_only && m_layers.preview_layer_id(m_vertices[i]) < top_layer_id &&
                     (!m_settings.spiral_vase_mode || i != m_view_range.get_enabled()[0])) ?
                     encode_color(DUMMY_COLOR) : m_vertices_colors[i];
 
@@ -1752,9 +1752,14 @@ void ViewerImpl::update_view_full_range()
     const bool travels_visible = m_settings.options_visibility[size_t(EOptionType::Travels)];
     const bool wipes_visible   = m_settings.options_visibility[size_t(EOptionType::Wipes)];
 
+    // Both halves need the full printed layer as a candidate range. Filtering the actual
+    // half happens in update_enabled_entities(), without reordering the nozzle animation.
+    const size_t first_storage_layer = m_layers.print_layer_start(layers_range[0]);
+    const size_t last_storage_layer = m_layers.print_layer_end(layers_range[1]);
+
     auto first_it = m_vertices.begin();
     while (first_it != m_vertices.end() &&
-           (first_it->layer_id < layers_range[0] || !is_visible(*first_it, m_settings))) {
+           (first_it->layer_id < first_storage_layer || !is_visible(*first_it, m_settings))) {
         ++first_it;
     }
 
@@ -1775,7 +1780,7 @@ void ViewerImpl::update_view_full_range()
         }
 
         auto last_it = first_it;
-        while (last_it != m_vertices.end() && last_it->layer_id <= layers_range[1]) {
+        while (last_it != m_vertices.end() && last_it->layer_id <= last_storage_layer) {
             ++last_it;
         }
         if (last_it != first_it)

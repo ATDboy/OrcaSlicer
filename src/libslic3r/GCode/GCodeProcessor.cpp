@@ -2714,7 +2714,7 @@ bool GCodeProcessor::split_staggered_preview_layers(std::vector<GCodeProcessorRe
 
     layer_zs.clear();
     layer_upper_half.clear();
-    if (moves.empty() || spiral_vase_mode || !staggered_perimeters_mode) {
+    if (moves.size() < 2 || spiral_vase_mode || !staggered_perimeters_mode) {
         BOOST_LOG_TRIVIAL(warning) << "OrcaBrick: Preview split skipped, "
                                    << (moves.empty()      ? "there are no moves" :
                                        spiral_vase_mode   ? "spiral vase mode is on" :
@@ -2737,7 +2737,9 @@ bool GCodeProcessor::split_staggered_preview_layers(std::vector<GCodeProcessorRe
     size_t                    printed_layers = 0;
     size_t                    split_layers   = 0;
 
-    for (size_t begin = 0; begin < moves.size();) {
+    // Move zero is only the starting position; the viewer never converts it to a vertex.
+    // Do not allocate a preview layer that would have no vertices in libvgcode.
+    for (size_t begin = 1; begin < moves.size();) {
         const unsigned int print_layer_id = moves[begin].layer_id;
         size_t             end            = begin;
         while (end < moves.size() && moves[end].layer_id == print_layer_id)

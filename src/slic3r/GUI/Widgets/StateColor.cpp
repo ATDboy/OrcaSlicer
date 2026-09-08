@@ -1,9 +1,39 @@
 #include "StateColor.hpp"
 #include <cmath>
+#include <optional>
 
 static bool gDarkMode = false;
 static wxColour gAccentColor("#00E5FF");
 static wxColour gModelColor; // invalid until set: follow the accent colour
+static std::array<wxColour, static_cast<size_t>(StateColor::ThemeColor::Count)> gThemeColors;
+
+const char* StateColor::ThemeColorKey(ThemeColor role)
+{
+    static constexpr const char* keys[] = {"theme_window", "theme_panel", "theme_toolbar",
+        "theme_text", "theme_muted_text", "theme_border", "theme_button", "theme_button_hover",
+        "theme_accent_hover", "theme_accent_light", "theme_canvas"};
+    return keys[static_cast<size_t>(role)];
+}
+
+void StateColor::SetThemeColor(ThemeColor role, const wxColour& color)
+{
+    gThemeColors[static_cast<size_t>(role)] = color;
+}
+
+wxColour StateColor::ThemeColorFor(ThemeColor role, const wxColour& fallback)
+{
+    const wxColour& color = gThemeColors[static_cast<size_t>(role)];
+    return color.IsOk() ? color : fallback;
+}
+
+wxColour StateColor::DefaultThemeColor(ThemeColor role)
+{
+    static constexpr const char* light[] = {"#FFFFFF", "#F8F8F8", "#3B4446", "#262E30",
+        "#6B6B6B", "#DBDBDB", "#DFDFDF", "#D4D4D4", "#26A69A", "#E5F0EE", "#FFFFFF"};
+    static constexpr const char* dark[] = {"#2D2D31", "#36363C", "#2D2D30", "#EFEFF0",
+        "#818183", "#4A4A51", "#3E3E45", "#4D4D54", "#008172", "#283232", "#242428"};
+    return wxColour((gDarkMode ? dark : light)[static_cast<size_t>(role)]);
+}
 
 static bool operator<(wxColour const &l, wxColour const &r) { return l.GetRGBA() < r.GetRGBA(); }
 
@@ -201,18 +231,53 @@ void StateColor::SetModelColor(const wxColour &color) { gModelColor = color; }
 
 wxColour StateColor::ModelColor() { return gModelColor.IsOk() ? gModelColor : gAccentColor; }
 
-wxColour StateColor::AccentHoverColor() { return LightenDarkenColor(gAccentColor, gDarkMode ? -10 : -15); }
+wxColour StateColor::AccentHoverColor()
+{
+    return ThemeColorFor(ThemeColor::AccentHover, LightenDarkenColor(gAccentColor, gDarkMode ? -10 : -15));
+}
 
 wxColour StateColor::AccentLightColor()
 {
-    const wxColour background = gDarkMode ? wxColour("#2B2B30") : wxColour("#FFFFFF");
+    const wxColour background = ThemeColorFor(ThemeColor::Window,
+        gDarkMode ? wxColour("#2B2B30") : wxColour("#FFFFFF"));
     const double accent_weight = gDarkMode ? 0.35 : 0.18;
     const auto blend = [accent_weight](unsigned char accent, unsigned char base) {
         return static_cast<unsigned char>(std::lround(accent * accent_weight + base * (1.0 - accent_weight)));
     };
-    return wxColour(blend(gAccentColor.Red(), background.Red()),
+    return ThemeColorFor(ThemeColor::AccentLight, wxColour(blend(gAccentColor.Red(), background.Red()),
                     blend(gAccentColor.Green(), background.Green()),
-                    blend(gAccentColor.Blue(), background.Blue()));
+                    blend(gAccentColor.Blue(), background.Blue())));
+}
+
+static std::optional<wxColour> apply_theme(const wxColour& color)
+{
+    using Role = StateColor::ThemeColor;
+    // Match source tokens in either built-in mode. An unset override leaves every original
+    // shade intact, including controls which intentionally use a different background.
+    static const std::map<wxColour, Role> roles = {
+        {"#FFFFFF", Role::Window}, {"#2D2D31", Role::Window}, {"#2B2B2B", Role::Window},
+        {"#F8F8F8", Role::Panel}, {"#F1F1F1", Role::Panel}, {"#F4F4F4", Role::Panel},
+        {"#FEFFFF", Role::Panel}, {"#36363C", Role::Panel}, {"#36363B", Role::Panel},
+        {"#36363D", Role::Panel}, {"#242428", Role::Panel},
+        {"#3B4446", Role::Toolbar}, {"#2D2D30", Role::Toolbar},
+        {"#262E30", Role::Text}, {"#EFEFF0", Role::Text}, {"#000000", Role::Text},
+        {"#FFFFFE", Role::Text}, {"#FAFAFA", Role::Text}, {"#363636", Role::Text},
+        {"#B2B3B5", Role::Text}, {"#323A3D", Role::Text}, {"#E5E5E4", Role::Text},
+        {"#6B6B6B", Role::MutedText}, {"#818183", Role::MutedText},
+        {"#6B6B6A", Role::MutedText}, {"#B3B3B5", Role::MutedText},
+        {"#DBDBDB", Role::Border}, {"#4A4A51", Role::Border},
+        {"#EEEEEE", Role::Border}, {"#4C4C55", Role::Border},
+        {"#DFDFDF", Role::Button}, {"#E8E8E8", Role::Button}, {"#3E3E45", Role::Button},
+        {"#D4D4D4", Role::ButtonHover}, {"#4D4D54", Role::ButtonHover},
+        {"#CECECE", Role::ButtonHover}, {"#54545B", Role::ButtonHover}
+    };
+    const auto it = roles.find(color);
+    if (it != roles.end()) {
+        const wxColour selected = StateColor::ThemeColorFor(it->second, wxColour());
+        if (selected.IsOk())
+            return selected;
+    }
+    return std::nullopt;
 }
 
 static wxColour apply_accent(const wxColour &color)
@@ -232,6 +297,8 @@ static wxColour apply_accent(const wxColour &color)
 
 inline wxColour darkModeColorFor2(wxColour const &color)
 {
+    if (const auto themed = apply_theme(color))
+        return *themed;
     const wxColour accented = apply_accent(color);
     if (accented != color)
         return accented;
@@ -251,6 +318,8 @@ std::map<wxColour, wxColour> revert(std::map<wxColour, wxColour> const & map)
 
 wxColour StateColor::lightModeColorFor(wxColour const &color)
 {
+    if (const auto themed = apply_theme(color))
+        return *themed;
     const wxColour accented = apply_accent(color);
     if (accented != color)
         return accented;

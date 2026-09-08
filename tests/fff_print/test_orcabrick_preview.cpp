@@ -219,3 +219,14 @@ SCENARIO("Layers that are not Bricklaying are left alone", "[OrcaBrick][Preview]
         }
     }
 }
+
+TEST_CASE("The unrendered initial position does not create an empty preview layer", "[OrcaBrick][Preview]")
+{
+    std::vector<Move> moves{travel(0, 0.0f)};
+    append_bricklaying_layer(moves, 1, 0.4f, {0.2f, 0.2f});
+    const Split split = run(moves);
+    REQUIRE(split.happened);
+    REQUIRE(split.zs.size() == 2);
+    REQUIRE(moves[1].layer_id == 0);
+    require_libvgcode_contract(moves, split);
+}

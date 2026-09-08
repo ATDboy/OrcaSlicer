@@ -1,6 +1,9 @@
 name: Build OrcaBrick
 
 on:
+  pull_request:
+    branches:
+      - orcabrick-2.4.2
   push:
     branches:
       - orcabrick-2.4.2

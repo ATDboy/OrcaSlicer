@@ -2,6 +2,26 @@
 
 OrcaBrick is the branded OrcaSlicer fork on the `orcabrick-2.4.2` branch.
 
+## Build 37: half-layer selection and interface colours
+
+Preview now selects each Bricklaying half independently by its actual extrusion Z.
+Selecting only the raised half includes its walls wherever they occur in the G-code;
+selecting both halves builds the complete course. The move slider retains G-code order.
+Filament and feature colours remain unchanged. Prints with Bricklaying disabled do not
+use this mapping, and sequential prints that descend in Z retain the ordinary preview.
+
+Preferences includes overrides for the main window, panels, toolbar, main and secondary
+text, borders, buttons, hover states, selection background, and 3D canvas. Existing accent
+and model colours remain available. Each new override has a **Use default** switch;
+clearing it selects a colour, enabling it restores the light/dark mode defaults. Restart
+after changing interface colours so cached icons and existing native controls agree.
+These are application UI colours; operating-system dialogs and embedded third-party
+printer web pages retain their own themes.
+
+Regression tests exercise the actual libvgcode half selection, including interleaved
+walls, differing raised heights, a final nominal extrusion, Z hop, and reset. Parser tests
+also cover an initial position without a corresponding rendered vertex.
+
 ## Bricklaying behavior
 
 When **Staggered perimeters / Bricklaying** is enabled with Arachne and at least
