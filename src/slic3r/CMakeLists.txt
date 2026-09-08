@@ -748,6 +748,16 @@ else ()
 endif ()
 target_include_directories(libslic3r_gui PRIVATE Utils ${CMAKE_CURRENT_BINARY_DIR})
 
+# FindwxWidgets on Linux supplies directory-scoped flags through its use file.
+# Public GUI headers include wx headers, so consumers such as the theme tests need
+# the same usage requirements even when they live outside the src/ directory.
+if(wxWidgets_USE_FILE)
+    target_include_directories(libslic3r_gui SYSTEM INTERFACE ${wxWidgets_INCLUDE_DIRS})
+    target_compile_definitions(libslic3r_gui INTERFACE ${wxWidgets_DEFINITIONS})
+    separate_arguments(_wx_interface_options NATIVE_COMMAND "${wxWidgets_CXX_FLAGS}")
+    target_compile_options(libslic3r_gui INTERFACE ${_wx_interface_options})
+endif()
+
 if (WIN32)
     target_include_directories(libslic3r_gui SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../deps/WebView2/include)
     target_link_libraries(libslic3r_gui Advapi32)
